@@ -1,0 +1,34 @@
+{
+  "slug": "lms",
+  "domain": "lms.example.com",
+  "app_type": "moodle",
+  "moodle_version": "4.5.0",
+  "php_version": "8.3",
+  "db_type": "postgres",
+  "ports": {
+    "http": 8247,
+    "https": 4189,
+    "php": 9347,
+    "redis": 6612
+  },
+  "redis": {
+    "password": "ChangeMe_Redis1"
+  },
+  "database": {
+    "type": "postgres",
+    "port": 5623,
+    "name": "k7x2m9q4p5w8z3a",
+    "user": "n6v8c2b4m9k7p3r",
+    "password": "ChangeMe_Pg_001"
+  },
+  "basic_auth": {
+    "enabled": false,
+    "user": "",
+    "password": ""
+  },
+  "ssl": {
+    "enabled": true,
+    "email": "admin@example.com"
+  },
+  "project_path": "/var/www/lms"
+}
