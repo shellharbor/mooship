@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Shell checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Bash syntax
+        run: for file in *.sh lib/*.sh examples/*.sh; do bash -n "$file"; done
+      - name: ShellCheck
+        run: >
+          shellcheck -S warning deploy-moodle.sh backup.sh restore.sh activate.sh
+          deactivate.sh remove.sh list-projects.sh schedule-backup.sh doctor.sh lib/common.sh
+
+  test:
+    name: Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # Includes the generated Compose variants (the runner has the Docker Compose CLI)
+      - name: Unit tests
+        run: python3 -B -m unittest discover -s tests -v
+      # The integration tests never pull images themselves (--pull never)
+      - name: Pull integration test images
+        run: |
+          for image in nginx:1.29.1-alpine php:8.4-fpm-alpine python:3.12-alpine \
+                       httpd:2.4-alpine alpine/openssl:latest postgres:17-alpine mysql:8.4; do
+            docker pull --quiet "$image"
+          done
+      - name: Docker integration tests
+        env:
+          MOOSHIP_DOCKER_TESTS: "1"
+          MOOSHIP_HTTP_INTEGRATION: "1"
+          MOOSHIP_TEST_PHP_IMAGE: php:8.4-fpm-alpine
+        run: python3 -B -m unittest discover -s tests -p "test_*_roundtrip.py" -v

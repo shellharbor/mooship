@@ -88,6 +88,7 @@ restore_main() (
         chmod 644 "$PROJECT_DIR/.config/nginx/.htpasswd"
     fi
     init_nginxproxy
+    ensure_logrotate
     create_native_database
     ensure_project_docker_resources
     docker compose config --quiet

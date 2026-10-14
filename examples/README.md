@@ -23,14 +23,14 @@ For reinstallation, create a full backup first, then confirm `remove.sh` separat
 |---|---|---|
 | [01-minimal-postgres.sh](01-minimal-postgres.sh) | Minimal invocation: a generated slug is added to the domain (wildcard DNS required) | `--domain` `--db-type postgres` `--ssl-email` |
 | [02-mysql-explicit-slug.sh](02-mysql-explicit-slug.sh) | Containerized MySQL with an explicit slug | `--slug lms` `--db-type mysql` |
-| [03-moodle-5-version.sh](03-moodle-5-version.sh) | Moodle 5.1.x: PHP 8.4 is selected automatically, and nginx's document root switches to `public/` | `--moodle-version 5.1.4` |
+| [03-moodle-5-version.sh](03-moodle-5-version.sh) | The newest Moodle 5.3.x: PHP 8.4 is selected automatically, and nginx's document root switches to `public/` | `--moodle-version 5.3` |
 | [04-explicit-php-version.sh](04-explicit-php-version.sh) | An explicit PHP version instead of automatic selection | `--moodle-version 4.4.0` `--php-version 8.1` |
-| [05-custom-admin.sh](05-custom-admin.sh) | Custom administrator username and password | `--moodle-admin-user` `--moodle-admin-password` |
+| [05-custom-admin.sh](05-custom-admin.sh) | Custom administrator username, password, and email | `--moodle-admin-user` `--moodle-admin-password` `--moodle-admin-email` |
 | [06-site-names.sh](06-site-names.sh) | Full and short site names | `--moodle-site-fullname` `--moodle-site-shortname` |
 | [07-native-postgres.sh](07-native-postgres.sh) | Host PostgreSQL instead of a container (`172.17.0.1:5432`) | `--db-native` |
 | [08-basic-auth.sh](08-basic-auth.sh) | HTTP Basic Auth protecting the entire site | `--enable-basic-auth` `--auth-user` `--auth-password` |
 | [09-no-ssl.sh](09-no-ssl.sh) | A working HTTP site without a certificate | `--no-ssl` |
-| [10-production-full.sh](10-production-full.sh) | Production: fixed credentials and ports, registration, and a full backup (database, files, SSL) | `--db-postgres-*` `--port-*` `--redis-password` `--endpoint` `--create-backup` |
+| [10-production-full.sh](10-production-full.sh) | Production: fixed credentials and ports, registration, and a full backup (database, files, SSL) | `--db-postgres-*` `--port-*` `--smtp-*` `--profile` `--endpoint` `--create-backup` |
 
 ## Generated file samples
 

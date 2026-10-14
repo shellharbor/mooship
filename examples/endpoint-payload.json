@@ -2,7 +2,7 @@
   "slug": "lms",
   "domain": "lms.example.com",
   "app_type": "moodle",
-  "moodle_version": "4.5.0",
+  "moodle_version": "4.5.15",
   "php_version": "8.3",
   "db_type": "postgres",
   "ports": {

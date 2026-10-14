@@ -1,3 +1,10 @@
+# Bounded container logs: Docker's default json-file driver never rotates
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   php:
     build:
@@ -5,6 +12,16 @@ services:
       dockerfile: php${PHP_VERSION}.Dockerfile
     container_name: {SLUG}_php
     restart: always
+    logging: *default-logging
+    # Moodle stores sessions in Redis (config.php)
+    depends_on:
+      - redis
+    environment:
+      # Pool size from the resource profile in .env, read by .config/php/fpm-pool.conf
+      PHP_FPM_MAX_CHILDREN: ${PHP_FPM_MAX_CHILDREN:-8}
+      PHP_FPM_START_SERVERS: ${PHP_FPM_START_SERVERS:-2}
+      PHP_FPM_MIN_SPARE_SERVERS: ${PHP_FPM_MIN_SPARE_SERVERS:-1}
+      PHP_FPM_MAX_SPARE_SERVERS: ${PHP_FPM_MAX_SPARE_SERVERS:-4}
     ports:
       # Localhost only: nginx reaches PHP through the internal network; externally exposed FastCGI allows code execution
       - "127.0.0.1:${PHP_PORT}:9000"
@@ -12,6 +29,9 @@ services:
       - ./public_html:/var/www/html
       - ./moodledata:/var/www/moodledata
       - ./.config/php/php${PHP_VERSION}.ini:/usr/local/etc/php/php.ini:ro
+      # Moodle limits and OPcache (loaded after php.ini) and the PHP-FPM pool size
+      - ./.config/php/mooship.ini:/usr/local/etc/php/conf.d/zz-mooship.ini:ro
+      - ./.config/php/fpm-pool.conf:/usr/local/etc/php-fpm.d/zz-mooship.conf:ro
     networks:
       - {SLUG}
   nginx:
@@ -22,6 +42,7 @@ services:
     command: /bin/sh -c 'while :; do sleep 21600 & wait $${!}; nginx -s reload; done & exec nginx -g "daemon off;"'
     container_name: {SLUG}_nginx
     restart: always
+    logging: *default-logging
     working_dir: /var/www/html
     depends_on:
       - php
@@ -36,7 +57,7 @@ services:
       - {SLUG}_ssl_certificates:/etc/letsencrypt:ro
       - {SLUG}_certbot_www:/var/www/certbot
       #- ../nginxproxy/dhparam.pem:/etc/ssl/certs/dhparam.pem:ro
-      # cd /var/www/{SLUG}/.config/nginx && docker run --rm httpd:alpine htpasswd -nb USERNAME PASSWORD > .htpasswd
+      # cd /var/www/{SLUG}/.config/nginx && docker run --rm httpd:2.4-alpine htpasswd -nb USERNAME PASSWORD > .htpasswd
       #- ./.config/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     networks:
       - {SLUG}
@@ -44,6 +65,19 @@ services:
     image: postgres:17-alpine
     container_name: {SLUG}_db_postgres
     restart: always
+    logging: *default-logging
+    # Memory settings from the resource profile in .env; parallel queries use /dev/shm
+    shm_size: ${DB_SHM_SIZE:-256mb}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-256MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-768MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-64MB}
     environment:
       POSTGRES_DB: ${DB_POSTGRES_NAME}
       POSTGRES_USER: ${DB_POSTGRES_USER}
@@ -64,9 +98,14 @@ services:
     networks:
       - {SLUG}
   db_mysql:
-    image: mysql:9.1
+    # 8.4 LTS: Moodle 5.x requires MySQL 8.4+, and Innovation releases (9.x) have short support
+    image: mysql:8.4
     container_name: {SLUG}_db_mysql
     restart: always
+    logging: *default-logging
+    # Buffer pool from the resource profile in .env
+    command:
+      - --innodb-buffer-pool-size=${MYSQL_INNODB_BUFFER_POOL_SIZE:-256M}
     environment:
       MYSQL_DATABASE: ${DB_MYSQL_NAME}
       MYSQL_USER: ${DB_MYSQL_USER}
@@ -87,7 +126,7 @@ services:
     networks:
       - {SLUG}
   permissions:
-    image: alpine:latest
+    image: alpine:3.24
     container_name: {SLUG}_permissions
     volumes:
       - ./public_html:/var/www/html
@@ -103,7 +142,7 @@ services:
     networks:
       - {SLUG}
   certbot:
-    image: certbot/certbot:latest
+    image: certbot/certbot:v5.8.0
     container_name: {SLUG}_certbot
     depends_on:
       - nginx
@@ -113,9 +152,10 @@ services:
     networks:
       - {SLUG}
   certbot_renew:
-    image: certbot/certbot:latest
+    image: certbot/certbot:v5.8.0
     container_name: {SLUG}_certbot_renew
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - {SLUG}_ssl_certificates:/etc/letsencrypt
       - {SLUG}_certbot_www:/var/www/certbot
@@ -126,6 +166,7 @@ services:
     image: redis:7-alpine
     container_name: {SLUG}_redis
     restart: always
+    logging: *default-logging
     command:
       - redis-server
       - --requirepass
@@ -142,6 +183,7 @@ services:
       dockerfile: php${PHP_VERSION}.Dockerfile
     container_name: {SLUG}_cron
     restart: always
+    logging: *default-logging
     depends_on:
       - php
       - db
@@ -149,6 +191,7 @@ services:
       - ./public_html:/var/www/html
       - ./moodledata:/var/www/moodledata
       - ./.config/php/php${PHP_VERSION}.ini:/usr/local/etc/php/php.ini:ro
+      - ./.config/php/mooship.ini:/usr/local/etc/php/conf.d/zz-mooship.ini:ro
     # Run Moodle cron every minute (the image uses Debian and runs as www; crond/crontab are unsuitable here)
     entrypoint: >
       sh -c "while true; do

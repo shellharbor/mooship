@@ -41,6 +41,12 @@ class HttpRoundtripTests(unittest.TestCase):
         self.slug = "mooship_http_" + uuid.uuid4().hex[:12]
         self.network = self.slug
         self.containers = []
+        # Containers run as the invoking user so Linux bind mounts stay readable and writable.
+        if hasattr(os, "getuid"):
+            self.uid, self.gid = os.getuid(), os.getgid()
+        else:
+            self.uid, self.gid = 1000, 1000
+        self.user = "{}:{}".format(self.uid, self.gid)
         self.docker("network", "create", "--internal", "--label", "org.mooship.test=http", self.network)
         self.addCleanup(self.cleanup_docker)
 
@@ -54,12 +60,13 @@ class HttpRoundtripTests(unittest.TestCase):
 
     def start(self, name, image, command, mounts):
         self.containers.append(name)
+        owner = "uid={},gid={}".format(self.uid, self.gid)
         arguments = ["run", "--detach", "--pull", "never", "--name", name,
                      "--network", self.network, "--network-alias", name,
                      "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-                     "--user", "1000:1000", "--tmpfs", "/tmp:rw,uid=1000,gid=1000,mode=1777",
-                     "--tmpfs", "/var/cache/nginx:rw,uid=1000,gid=1000",
-                     "--tmpfs", "/var/log/nginx:rw,uid=1000,gid=1000"]
+                     "--user", self.user, "--tmpfs", "/tmp:rw," + owner + ",mode=1777",
+                     "--tmpfs", "/var/cache/nginx:rw," + owner,
+                     "--tmpfs", "/var/log/nginx:rw," + owner]
         for source, target in mounts:
             arguments += self.mount(source, target)
         self.docker(*arguments, "--entrypoint", command[0], image, *command[1:])
@@ -68,7 +75,7 @@ class HttpRoundtripTests(unittest.TestCase):
         keys = self.directory / "keys"
         keys.mkdir()
         self.docker("run", "--rm", "--pull", "never", "--network", "none", "--read-only",
-                    "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000",
+                    "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", self.user,
                     "--mount", "type=bind,source=" + str(keys) + ",target=/keys",
                     "alpine/openssl:latest", "req", "-x509", "-nodes", "-newkey", "rsa:2048",
                     "-days", "1", "-subj", "/CN=test.example",
@@ -112,16 +119,24 @@ class HttpRoundtripTests(unittest.TestCase):
         webroot = html / "public" if public else html
         self.write(webroot / "index.php", "<?php echo 'MOOSHIP:' . (empty($_SERVER['HTTPS']) ? 'http' : 'https');")
         self.write(webroot / "pluginfile.php", "<?php echo $_SERVER['PATH_INFO'];")
+        self.write(webroot / "r.php", "<?php echo 'ROUTER:' . $_SERVER['REQUEST_URI'];")
+        self.write(webroot / "course/index.php", "<?php echo 'COURSE';")
+        self.write(webroot / "address.php", "<?php echo $_SERVER['REMOTE_ADDR'];")
+        self.write(webroot / "sendfile.php",
+                   "<?php header('X-Accel-Redirect: /dataroot/localcache/theme/all.css');")
         self.write(webroot / "asset.css", "synthetic asset")
         self.write(webroot / ".env", "must not be served")
+        moodledata = self.directory / "moodledata"
+        self.write(moodledata / "localcache/theme/all.css", "synthetic moodledata file")
         self.write(self.directory / "acme/.well-known/acme-challenge/token", "synthetic challenge")
         password = self.docker("run", "--rm", "--pull", "never", "--network", "none", "--read-only",
                                "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-                               "--entrypoint", "htpasswd", "httpd:alpine", "-nb", "reviewer", "Synthetic_Basic")
+                               "--entrypoint", "htpasswd", "httpd:2.4-alpine", "-nb", "reviewer", "Synthetic_Basic")
         self.write(self.directory / ".htpasswd", password + "\n")
         certificates = self.certificates() if https else self.directory / "certificates"
         certificates.mkdir(exist_ok=True)
         common = [(self.directory, "/fixtures"), (html, "/var/www/html"),
+                  (moodledata, "/var/www/moodledata"),
                   (self.directory / "acme", "/var/www/certbot"),
                   (self.directory / ".htpasswd", "/etc/nginx/.htpasswd"),
                   (certificates, "/etc/letsencrypt")]
@@ -137,14 +152,19 @@ class HttpRoundtripTests(unittest.TestCase):
         self.client = self.slug + "_client"
         self.start(self.client, "python:3.12-alpine", ["sleep", "600"], common)
         self.base = ("https://" if https else "http://") + self.proxy
+        # Redirects are reported, not followed: test.example is not resolvable in the network.
         self.write(self.directory / "client.py", '''import json, ssl, sys
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, *arguments, **keywords):
+        return None
+opener = build_opener(NoRedirect, HTTPSHandler(context=ssl._create_unverified_context()))
 headers = {"Host": "test.example"}
 if sys.argv[2]: headers["Authorization"] = "Basic " + sys.argv[2]
+if sys.argv[3]: headers["X-Forwarded-For"] = sys.argv[3]
 try:
-    response = urlopen(Request(sys.argv[1], headers=headers), timeout=2,
-                       context=ssl._create_unverified_context())
+    response = opener.open(Request(sys.argv[1], headers=headers), timeout=2)
 except HTTPError as error:
     response = error
 with response:
@@ -165,10 +185,10 @@ with response:
         for name in (self.slug + "_nginx", self.proxy):
             self.docker("exec", name, "nginx", "-t")
 
-    def request(self, path, authenticated=False):
+    def request(self, path, authenticated=False, base=None, forwarded_for=""):
         authorization = base64.b64encode(b"reviewer:Synthetic_Basic").decode("ascii") if authenticated else ""
         return tuple(json.loads(self.docker("exec", self.client, "python3", "/fixtures/client.py",
-                                            self.base + path, authorization)))
+                                            (base or self.base) + path, authorization, forwarded_for)))
 
     def verify_site(self, https=False, basic_auth=False, public=False):
         self.prepare(https=https, basic_auth=basic_auth, public=public)
@@ -181,10 +201,39 @@ with response:
         self.assertIn(self.request("/.env", basic_auth)[0], (403, 404))
         self.assertEqual(self.request("/dataroot/private.txt", basic_auth)[0], 404)
         self.assertEqual(self.request("/.well-known/acme-challenge/token")[:2], (200, "synthetic challenge"))
+        # Moodle routing engine: directories keep their index.php, unknown paths reach r.php.
+        self.assertEqual(self.request("/course/", basic_auth)[:2], (200, "COURSE"))
+        self.assertEqual(self.request("/virtual/route?id=7", basic_auth)[:2],
+                         (200, "ROUTER:/virtual/route?id=7"))
+        # $CFG->xsendfile: PHP hands the file to nginx through the internal /dataroot/ location.
+        self.assertEqual(self.request("/sendfile.php", basic_auth)[:2], (200, "synthetic moodledata file"))
+        # PHP sees the client address, not nginxproxy's, and clients cannot forge it.
+        client = self.docker("inspect", "--format",
+                             '{{(index .NetworkSettings.Networks "' + self.network + '").IPAddress}}',
+                             self.client)
+        self.assertEqual(self.request("/address.php", basic_auth)[:2], (200, client))
+        self.assertEqual(self.request("/address.php", basic_auth, forwarded_for="203.0.113.9")[:2],
+                         (200, client))
+        if https:
+            status, _, headers = self.request("/course/view.php?id=7", base="http://" + self.proxy)
+            self.assertEqual(status, 301)
+            self.assertEqual(headers["Location"], "https://test.example/course/view.php?id=7")
+            self.assertEqual(self.request("/.well-known/acme-challenge/token", base="http://" + self.proxy)[:2],
+                             (200, "synthetic challenge"))
         if basic_auth:
             self.assertEqual(self.request("/")[0], 401)
             self.assertEqual(self.request("/pluginfile.php/course/file")[0], 401)
             self.assertEqual(self.request("/asset.css")[0], 401)
+            self.assertEqual(self.request("/virtual/route")[0], 401)
+
+    def test_stopped_project_does_not_stop_the_proxy(self):
+        self.prepare()
+        self.docker("rm", "--force", self.slug + "_nginx")
+        self.docker("exec", self.proxy, "nginx", "-t")
+        self.docker("exec", self.proxy, "nginx", "-s", "reload")
+        time.sleep(0.5)
+        self.assertEqual(self.request("/")[0], 502)
+        self.assertEqual(self.docker("inspect", "--format", "{{.State.Running}}", self.proxy), "true")
 
     def test_http_legacy_document_root(self):
         self.verify_site()

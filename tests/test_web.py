@@ -21,13 +21,34 @@ class WebConfigurationTests(unittest.TestCase):
         self.assertIn("listen 80;", content)
         self.assertIn("root /var/www/html;", content)
         self.assertIn("fastcgi_pass             {SLUG}_php:9000;", content)
-        self.assertIn("location /dataroot/", content)
+        self.assertIn("location ^~ /dataroot/", content)
+        self.assertIn("try_files $uri $uri/ /r.php$is_args$args;", content)
         self.assertIn("client_max_body_size 2048M;", content)
         self.assertIn("location ~ /\\.", content)
         self.assertNotIn("ssl_certificate", content)
         self.assertNotIn("Strict-Transport-Security", content)
+        self.assertNotIn("return 301", content)
         self.assertTrue(blocks[1][3])
         self.assertIn("ssl_certificate", "\n".join(blocks[1][2]))
+        # Trusted-proxy settings live outside the server blocks and therefore apply in both modes.
+        self.assertIn("real_ip_header X-Forwarded-For;", result.split("server {", 1)[0])
+
+    def test_https_port_80_redirects_everything_except_acme(self):
+        blocks = WEB.server_blocks(self.template.splitlines())
+        http = "\n".join(blocks[0][2])
+        self.assertIn("listen 80;", http)
+        self.assertIn("location ^~ /.well-known/acme-challenge/", http)
+        self.assertIn("return 301 https://$host$request_uri;", http)
+        self.assertNotIn("fastcgi_pass", http)
+
+    def test_templates_drop_ocsp_stapling_and_debug_logs(self):
+        proxy = (ROOT / "nginxproxy/site-template.conf").read_text(encoding="utf-8")
+        for content in (self.template, proxy):
+            self.assertNotIn("ssl_stapling", content)
+            self.assertNotIn(" debug;", content)
+        self.assertNotRegex(proxy, r"(?m)^\s*upstream\s")
+        self.assertIn("resolver 127.0.0.11", proxy)
+        self.assertIn("proxy_read_timeout 300s;", proxy)
 
     def test_basic_auth_and_public_acme_routes_are_preserved(self):
         template = self.template.replace('#        auth_basic ', '        auth_basic ')

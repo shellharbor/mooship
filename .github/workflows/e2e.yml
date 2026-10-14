@@ -1,0 +1,97 @@
+# Full deployments on a disposable runner: builds the PHP image, downloads Moodle, installs it
+# through the CLI and checks it through the shared proxy. Too slow for every push, so it runs
+# weekly and on demand. HTTP only: the runner has no public DNS name for Let's Encrypt.
+name: E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Moodle ${{ matrix.moodle }} + ${{ matrix.db }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        moodle: ["4.5", "5.3"]
+        db: [postgres, mysql]
+    env:
+      SLUG: e2e
+      DOMAIN: e2e.mooship.test
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve the test domain to the runner
+        run: echo "127.0.0.1 ${DOMAIN}" | sudo tee -a /etc/hosts
+
+      # SMTP sink on the host network: project containers reach it through the docker0 address
+      - name: Start a test mail server
+        run: docker run --detach --name mailpit --network host axllent/mailpit
+
+      - name: Deploy
+        run: >
+          sudo bash deploy-moodle.sh --slug "$SLUG" --domain "$DOMAIN" --no-ssl
+          --db-type "${{ matrix.db }}" --moodle-version "${{ matrix.moodle }}" --profile small
+          --smtp-host 172.17.0.1:1025 --smtp-secure none --noreply-email "noreply@${DOMAIN}"
+
+      - name: Login page through nginxproxy
+        run: |
+          curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/login/index.php" -o login.html
+          grep -q 'name="username"' login.html
+
+      # The project directory is private to root (mode 700)
+      - name: Moodle configuration, sessions in Redis, and cron
+        run: |
+          sudo bash -euo pipefail -c '
+            cd /var/www/e2e
+            grep -q "routerconfigured = true" public_html/config.php
+            grep -q "X-Accel-Redirect" public_html/config.php
+            docker compose exec -T php php -r "echo ini_get(\"upload_max_filesize\"), PHP_EOL;" | grep -qx 1024M
+            grep -qx "PHP_FPM_MAX_CHILDREN=8" .env
+            password=$(grep "^REDIS_PASSWORD=" .env | cut -d= -f2-)
+            docker compose exec -T -e REDISCLI_AUTH="$password" redis \
+              redis-cli --scan --pattern "mdl_session_*" | grep -q .
+            docker compose exec -T php php /var/www/html/admin/cli/cron.php > /dev/null
+          '
+
+      - name: Mail delivery through SMTP
+        run: |
+          sudo docker exec -i e2e_php php <<'PHP'
+          <?php
+          define('CLI_SCRIPT', true);
+          require('/var/www/html/config.php');
+          exit(email_to_user(get_admin(), core_user::get_noreply_user(), 'Mooship e2e', 'SMTP check') ? 0 : 1);
+          PHP
+          curl --fail --silent http://127.0.0.1:8025/api/v1/messages | grep -q 'Mooship e2e'
+
+      - name: Backups with retention and a schedule
+        run: |
+          sudo bash backup.sh --slug "$SLUG" --keep 1
+          sleep 1
+          sudo bash backup.sh --slug "$SLUG" --keep 1
+          test "$(sudo find /var/backups/mooship -name "${SLUG}_*.tar.gz" | wc -l)" -eq 1
+          sudo bash schedule-backup.sh --slug "$SLUG" --at 04:00 --keep 3
+          systemctl list-timers --all --no-pager "mooship-backup-${SLUG}.timer" | grep -q "mooship-backup-${SLUG}"
+          sudo bash schedule-backup.sh --slug "$SLUG" --disable
+          test ! -e "/etc/systemd/system/mooship-backup-${SLUG}.timer"
+
+      # Warnings are expected on a test runner (no certificate, Moodle notices); failures are not
+      - name: Doctor
+        run: |
+          status=0
+          sudo bash doctor.sh --slug "$SLUG" || status=$?
+          test "$status" -le 1
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          sudo docker ps -a
+          sudo bash -c 'cd /var/www/e2e && docker compose logs --tail 200' || true
+          sudo docker logs --tail 100 nginxproxy || true
+          docker logs --tail 50 mailpit || true

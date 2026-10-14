@@ -10,7 +10,7 @@ set -euo pipefail
 #
 # Result:
 #   - slug of 8 random characters [a-z0-9], domain <slug>.example.com
-#   - Moodle 4.5.0 (default) + PHP 8.3 (selected automatically)
+#   - the newest Moodle 4.5.x release (default) + PHP 8.3 (selected automatically)
 #   - PostgreSQL 17 in container <slug>_db, Redis, cron, certbot
 #   - generated passwords and database names; credentials in /var/www/<slug>/.env,
 #     with passwords hidden from normal output

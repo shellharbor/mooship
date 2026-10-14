@@ -77,13 +77,36 @@ backup_project() (
     ln -- "$partial" "$archive"
 )
 
+# Keep the newest N archives named <slug>_YYYYMMDD_HHMMSS.tar.gz in a directory.
+# Other files, including archives of other slugs and custom archive names, are never removed.
+prune_backups() {
+    local slug="$1" directory="$2" keep="$3" file name
+    local -a archives=()
+    while IFS= read -r -d '' file; do
+        name=$(basename -- "$file")
+        if [[ "$name" =~ ^${slug}_[0-9]{8}_[0-9]{6}\.tar\.gz$ ]]; then archives+=("$name"); fi
+    done < <(find "$directory" -maxdepth 1 -type f -name "${slug}_*.tar.gz" -print0)
+    ((${#archives[@]} > keep)) || return 0
+    # Timestamps in the names sort chronologically
+    while IFS= read -r name; do
+        rm -f -- "${directory:?}/$name"
+        printf '[INFO] Removed old backup (keeping %s): %s\n' "$keep" "$directory/$name"
+    done < <(printf '%s\n' "${archives[@]}" | sort -r | tail -n "+$((keep + 1))")
+}
+
 backup_main() {
-    local SLUG="" archive=""
+    local SLUG="" archive="" keep="" hook=""
     while (($#)); do
         case "$1" in
             --slug) SLUG="${2:?A value is required for --slug}"; shift 2 ;;
             --archive) archive="${2:?A value is required for --archive}"; shift 2 ;;
-            -h|--help) printf 'Mooship: sudo bash backup.sh --slug SLUG [--archive /path/backup.tar.gz]\n'; return ;;
+            --keep) keep="${2:?A value is required for --keep}"; shift 2 ;;
+            --post-hook) hook="${2:?A path is required for --post-hook}"; shift 2 ;;
+            -h|--help)
+                printf 'Mooship: sudo bash backup.sh --slug SLUG [--archive /path/backup.tar.gz] [--keep N] [--post-hook /path/hook]\n'
+                printf '  --keep N          keep the newest N <slug>_YYYYMMDD_HHMMSS.tar.gz archives in the archive directory\n'
+                printf '  --post-hook PATH  run PATH <archive> <slug> after a successful backup (for example, an off-site copy)\n'
+                return ;;
             *) mooship_die "Unknown argument: $1" ;;
         esac
     done
@@ -91,7 +114,22 @@ backup_main() {
     mooship_validate_slug "$SLUG"
     mooship_require_docker
     archive="${archive:-/var/backups/mooship/${SLUG}_$(date +%Y%m%d_%H%M%S).tar.gz}"
+    backup_run "$SLUG" "$archive" "$keep" "$hook"
+}
+
+# backup_run SLUG ARCHIVE [KEEP] [HOOK]: archive, then the optional hook and retention
+backup_run() {
+    local SLUG="$1" archive="$2" keep="${3:-}" hook="${4:-}"
+    [[ -z "$keep" || "$keep" =~ ^[1-9][0-9]{0,3}$ ]] || mooship_die "--keep must be a positive number"
+    [[ -z "$hook" ]] || mooship_validate_hook "$hook"
+    archive=$(realpath -m -- "$archive")
     backup_project "$SLUG" "$archive"
+    if [[ -n "$hook" ]]; then
+        printf '[INFO] Running post-backup hook: %s\n' "$hook"
+        # A failed hook (for example, an interrupted upload) keeps every archive for the next run.
+        "$hook" "$archive" "$SLUG" || mooship_die "The post-backup hook failed; the archive is kept: $archive"
+    fi
+    if [[ -n "$keep" ]]; then prune_backups "$SLUG" "$(dirname -- "$archive")" "$keep"; fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then backup_main "$@"; fi

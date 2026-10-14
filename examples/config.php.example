@@ -24,6 +24,20 @@ $CFG->admin     = 'admin';
 
 $CFG->directorypermissions = 0777;
 
+// nginx serves moodledata files (location ^~ /dataroot/ in .config/nginx/_site.conf).
+$CFG->xsendfile = 'X-Accel-Redirect';
+$CFG->xsendfilealiases = array('/dataroot/' => $CFG->dataroot);
+
+// nginx sends unknown paths to r.php (Moodle 4.5+ routing engine); older releases ignore this.
+$CFG->routerconfigured = true;
+
+// PHP sessions in the project's Redis container (password: REDIS_PASSWORD in .env).
+$CFG->session_handler_class = '\core\session\redis';
+$CFG->session_redis_host = 'lms_redis';
+$CFG->session_redis_port = 6379;
+$CFG->session_redis_auth = 'ChangeMe_Redis1';
+$CFG->session_redis_prefix = 'mdl_session_';
+
 require_once(__DIR__ . '/lib/setup.php');
 
 // There is no php closing tag in this file,

@@ -9,7 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @unittest.skipUnless(shutil.which("bash") and os.name == "posix", "Linux Bash required")
-class ScriptTests(unittest.TestCase):
+class BashTestCase(unittest.TestCase):
+    """Runs Mooship functions in Bash against a temporary /var/www; external commands are mocked."""
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -23,6 +25,10 @@ class ScriptTests(unittest.TestCase):
 source "$MOOSHIP_ROOT/''' + source + '''"
 WWW_DIR="$TEST_DIR/www"
 PROXY_DIR="$WWW_DIR/nginxproxy"
+LOGROTATE_DIR="$TEST_DIR/logrotate.d"
+UNIT_DIR="$TEST_DIR/systemd"
+BACKUP_DIR="$TEST_DIR/backups"
+MEMINFO_FILE="$TEST_DIR/meminfo"
 SLUG=test
 '''
         environment = dict(os.environ, MOOSHIP_ROOT=str(ROOT), TEST_DIR=str(self.directory))
@@ -39,6 +45,9 @@ SLUG=test
         (self.project / ".env").write_text(
             "SITE_HOST=test.example\nDB_NATIVE=false\nDB_POSTGRES_NAME=test\n"
             "MOODLE_VERSION=4.5.0\nPHP_VERSION=83\n", encoding="utf-8")
+
+
+class ScriptTests(BashTestCase):
 
     def test_repeat_deploy_preserves_data_and_never_calls_docker(self):
         self.fixture()
@@ -108,11 +117,79 @@ print_summary
         config = (self.project / "public_html/config.php").read_text()
         self.assertIn("SITE_SCHEME=http\n", env)
         self.assertIn("$CFG->wwwroot   = 'http://test.example';", config)
+        self.assertIn("$CFG->xsendfile = 'X-Accel-Redirect';", config)
+        self.assertIn("$CFG->xsendfilealiases = array('/dataroot/' => $CFG->dataroot);", config)
+        self.assertIn("$CFG->routerconfigured = true;", config)
+        self.assertIn("$CFG->session_handler_class = '\\core\\session\\redis';", config)
+        self.assertIn("$CFG->session_redis_host = 'test_redis';", config)
+        self.assertIn("$CFG->session_redis_auth = 'Synthetic_Redis';", config)
+        self.assertIn("SMTP:           not configured", result.stdout)
+        self.assertLess(config.index("$CFG->routerconfigured"), config.index("require_once"))
         self.assertIn("http://test.example/login/", result.stdout)
         self.assertNotIn("https://test.example", result.stdout)
         nginx = (self.project / ".config/nginx/_site.conf").read_text()
         self.assertIn("#\tlisten 443 ssl;", nginx)
         self.assertIn("fastcgi_pass             test_php:9000;", nginx)
+        self.assertNotIn("return 301", nginx)
+
+    def test_create_dhparam_enables_the_directive_and_mount(self):
+        result = self.bash('''
+DOMAIN=test.example; DB_TYPE=postgres; PHP_VERSION=83; CREATE_DHPARAM=true
+DB_POSTGRES_NAME=testsite; DB_POSTGRES_USER=testuser; DB_POSTGRES_PASSWORD=Synthetic_Pg
+REDIS_PASSWORD=Synthetic_Redis; PORT_POSTGRES=5543; PORT_REDIS=6501; PORT_PHP=9101
+PORT_HTTP=8101; PORT_HTTPS=4101
+create_project
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        nginx = (self.project / ".config/nginx/_site.conf").read_text()
+        self.assertIn("\n        ssl_dhparam /etc/ssl/certs/dhparam.pem;\n", nginx)
+        compose = (self.project / "docker-compose.yml").read_text()
+        self.assertIn("      - ../nginxproxy/dhparam.pem:/etc/ssl/certs/dhparam.pem:ro\n", compose)
+
+    def test_branch_version_resolves_to_newest_stable_release(self):
+        result = self.bash('''
+ensure_packages() { :; }
+git() {
+  printf '%s\\n' "$*" >> "$TEST_DIR/git.log"
+  printf '%s\\trefs/tags/%s\\n' a v4.5.0 b v4.5.9 c v4.5.15 d v4.5.16-rc1 e v4.5.2-beta
+}
+MOODLE_VERSION=4.5; resolve_moodle_version; printf 'RESOLVED=%s\\n' "$MOODLE_VERSION"
+MOODLE_VERSION=4.5.3; resolve_moodle_version; printf 'RESOLVED=%s\\n' "$MOODLE_VERSION"
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([line for line in result.stdout.splitlines() if line.startswith("RESOLVED=")],
+                         ["RESOLVED=4.5.15", "RESOLVED=4.5.3"])
+        # An explicit X.Y.Z release never queries GitHub.
+        self.assertEqual(len((self.directory / "git.log").read_text().splitlines()), 1)
+
+    def test_branch_without_stable_release_is_fatal(self):
+        result = self.bash('''
+ensure_packages() { :; }
+git() { printf '%s\\trefs/tags/%s\\n' a v9.9.0-beta b v9.90.1; }
+MOODLE_VERSION=9.9; resolve_moodle_version
+echo SHOULD_NOT_RUN
+''')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("SHOULD_NOT_RUN", result.stdout)
+
+    def test_logrotate_configuration_is_created_once(self):
+        logrotate = self.directory / "logrotate.d"
+        logrotate.mkdir()
+        result = self.bash('ensure_logrotate')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        configuration = (logrotate / "mooship").read_text()
+        self.assertIn(str(self.www / "nginxproxy/logs") + "/*/*.log {", configuration)
+        self.assertIn("copytruncate", configuration)
+        (logrotate / "mooship").write_text("# local changes\n", encoding="utf-8")
+        result = self.bash('ensure_logrotate')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((logrotate / "mooship").read_text(), "# local changes\n")
+
+    def test_missing_logrotate_is_not_fatal(self):
+        result = self.bash('ensure_logrotate; echo CONTINUED')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("CONTINUED", result.stdout)
+        self.assertFalse((self.directory / "logrotate.d").exists())
 
     def test_https_is_still_the_default_and_flag_order_is_respected(self):
         result = self.bash('''
@@ -140,7 +217,7 @@ echo SHOULD_NOT_RUN
     def test_failed_application_does_not_publish_proxy_configuration(self):
         # Exercise main's ordering with side effects replaced by trace markers.
         result = self.bash('''
-for function in check_root parse_args mooship_require_new_project assign_ports select_php_version_for_moodle install_docker mooship_require_docker mooship_require_unused_resources ensure_www_dir init_nginxproxy create_dhparam create_project comment_ssl_blocks create_native_database build_and_start_project install_moodle configure_moodle_config; do
+for function in check_root parse_args mooship_require_new_project assign_ports resolve_moodle_version select_php_version_for_moodle select_resource_profile install_docker mooship_require_docker mooship_require_unused_resources ensure_www_dir init_nginxproxy ensure_logrotate create_dhparam create_project comment_ssl_blocks create_native_database build_and_start_project install_moodle configure_moodle_config; do
   eval "$function() { :; }"
 done
 install_moodle_database() { return 42; }
@@ -198,7 +275,7 @@ remove_native_database
 
     def test_native_preflight_failure_does_not_create_project(self):
         result = self.bash('''DB_NATIVE=true; DB_TYPE=postgres; PORT_POSTGRES=5543
-for function in check_root parse_args assign_ports select_php_version_for_moodle install_docker mooship_require_docker mooship_require_unused_resources; do
+for function in check_root parse_args assign_ports resolve_moodle_version select_php_version_for_moodle select_resource_profile install_docker mooship_require_docker mooship_require_unused_resources; do
   eval "$function() { :; }"
 done
 mooship_require_new_native_database() { return 42; }
@@ -237,13 +314,31 @@ DB_POSTGRES_NAME=testsite; DB_POSTGRES_USER=testuser; DB_POSTGRES_PASSWORD=Synth
 DB_MYSQL_NAME=testsite; DB_MYSQL_USER=testuser; DB_MYSQL_PASSWORD=Synthetic_Mysql
 DB_MYSQL_ROOT_PASSWORD=Synthetic_Root; REDIS_PASSWORD=Synthetic_Redis
 PORT_POSTGRES=5543; PORT_MYSQL=3307; PORT_REDIS=6501; PORT_PHP=9101
-PORT_HTTP=8101; PORT_HTTPS=4101
+PORT_HTTP=8101; PORT_HTTPS=4101; PROFILE=medium
+select_resource_profile >/dev/null
 create_project >/dev/null
 docker compose --project-directory "$PROJECT_DIR" -f "$PROJECT_DIR/docker-compose.yml" config --format json
 ''')
                     self.assertEqual(result.returncode, 0, result.stderr)
                     services = json.loads(result.stdout)["services"]
                     self.assertEqual(services["certbot_renew"]["restart"], "unless-stopped")
+                    for name, service in services.items():
+                        image = service.get("image", "")
+                        self.assertFalse(image.endswith(":latest") or (image and ":" not in image), name)
+                        if name not in ("certbot", "permissions"):
+                            self.assertEqual(service["logging"]["options"]["max-size"], "10m", name)
+                    for name in ("php", "cron"):
+                        targets = [volume["target"] for volume in services[name]["volumes"]]
+                        self.assertIn("/usr/local/etc/php/conf.d/zz-mooship.ini", targets)
+                    self.assertIn("/usr/local/etc/php-fpm.d/zz-mooship.conf",
+                                  [volume["target"] for volume in services["php"]["volumes"]])
+                    if engine == "mysql" and native == "false":
+                        self.assertEqual(services["db"]["image"], "mysql:8.4")
+                        self.assertIn("--innodb-buffer-pool-size=768M", services["db"]["command"])
+                    if engine == "postgres" and native == "false":
+                        self.assertIn("shared_buffers=512MB", services["db"]["command"])
+                    self.assertEqual(services["php"]["environment"]["PHP_FPM_MAX_CHILDREN"], "16")
+                    self.assertIn("redis", services["php"]["depends_on"])
                     for service in ("php", "redis", "db"):
                         if service in services:
                             for port in services[service].get("ports", []):

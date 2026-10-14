@@ -20,9 +20,21 @@ Previously running `php`, `cron`, `nginx`, and `certbot_renew` services are stop
 
 Free space is required for a temporary directory copy, dump, certificates, and final archive. Private temporary files are cleaned up on normal completion and errors; SIGKILL/power loss prevents cleanup. The archive is published only after writing completes, with mode `600`. Failure to resume services returns a nonzero exit code even if the archive already exists: check the site state.
 
-The backup contains secrets and private SSL keys. Move it to your secure storage; automatic upload, encryption, and retention are not configured here. Redis is treated as a cache and its volume is not backed up. Shared nginxproxy recreates this site's entries from the template; shared proxy logs and manual changes are excluded.
+The backup contains secrets and private SSL keys. Keep copies in secure storage: `--post-hook` can upload each new archive (for example with rclone to an encrypted remote), and `--keep N` limits local archives. Redis holds only sessions and is not backed up; users log in again after a restore. Shared nginxproxy recreates this site's entries from the template; shared proxy logs and manual changes are excluded.
 
 Native databases require host clients: `pg_dump`/`pg_restore` or `mysqldump`/`mysql`. PostgreSQL uses the `postgres` system user; the MySQL dump is created by the application user. Clients must be compatible with the database server. Prepare the native server, its configuration, extensions, and network access on the destination host separately.
+
+## Schedule backups
+
+```bash
+sudo bash /opt/mooship/schedule-backup.sh --slug lms --at 03:30 --keep 7 [--post-hook /usr/local/sbin/mooship-offsite]
+sudo bash /opt/mooship/schedule-backup.sh --slug lms --status
+sudo bash /opt/mooship/schedule-backup.sh --slug lms --disable
+```
+
+The schedule consists of `mooship-backup-<slug>.service` (type `oneshot`, running `backup.sh --slug <slug> --keep N` with low CPU and I/O priority) and `mooship-backup-<slug>.timer` (daily, up to 15 minutes of random delay, `Persistent=true` to catch up after downtime). Logs are in `journalctl -u mooship-backup-<slug>.service`; `doctor.sh` warns when the newest archive is older than 48 hours and fails when the last scheduled run failed. `remove.sh` removes the schedule with the project.
+
+Retention (`--keep N`) only removes archives named `<slug>_YYYYMMDD_HHMMSS.tar.gz` in the archive's directory, keeping the newest N. It runs after the optional hook succeeds; a failed hook keeps every archive. Hooks run as root as `HOOK <archive> <slug>` and must be root-owned absolute paths that group and others cannot write.
 
 ## Restore a backup
 
@@ -58,4 +70,4 @@ Old projects without a marker retain their native database and role when the dir
 
 ## Repository checks
 
-`tests/test_scripts.py` checks data preservation, service stop/resume behavior, private permissions, critical failures, four Compose variants, and HTTP/HTTPS/legacy archive restoration, including preservation of custom HTTP routes. `tests/test_state.py` checks archives and rejection of dangerous paths. Opt-in `tests/test_database_roundtrip.py` restores synthetic data on real PostgreSQL 17 and MySQL 9.1 through the production function, including native branches and PostgreSQL table ownership. Full deployment, DNS, and actual Let's Encrypt issuance are checked separately on the target server.
+`tests/test_scripts.py` checks data preservation, service stop/resume behavior, private permissions, critical failures, four Compose variants, and HTTP/HTTPS/legacy archive restoration, including preservation of custom HTTP routes. `tests/test_state.py` checks archives and rejection of dangerous paths. Opt-in `tests/test_database_roundtrip.py` restores synthetic data on real PostgreSQL 17 and MySQL 8.4 through the production function, including native branches and PostgreSQL table ownership. Full deployment, DNS, and actual Let's Encrypt issuance are checked separately on the target server.

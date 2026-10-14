@@ -17,6 +17,7 @@ BOOTSTRAP_PROMPT.md
 /.agents/
 /.ai/
 /.codex/
+/.claude/
 /.cursor/
 /.windsurf/
 /.windsurfrules

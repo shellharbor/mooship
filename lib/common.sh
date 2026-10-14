@@ -56,6 +56,30 @@ mooship_require_unused_resources() {
     done
 }
 
+# Hooks run with the caller's privileges (root in production), so only that user may change them.
+mooship_validate_hook() {
+    local hook="$1" owner mode
+    [[ "$hook" == /* && -f "$hook" && -x "$hook" && ! -L "$hook" ]] ||
+        mooship_die "The hook must be an absolute path to an executable regular file: $hook"
+    read -r owner mode < <(stat -c '%u %a' -- "$hook")
+    [[ "$owner" == "$EUID" ]] && (( (8#$mode & 8#022) == 0 )) ||
+        mooship_die "The hook must be owned by the user running Mooship (root) and not writable by group or others: $hook"
+}
+
+# systemd units created by schedule-backup.sh: mooship-backup-<slug>.service and .timer
+mooship_backup_unit() { printf 'mooship-backup-%s' "$1"; }
+
+# Remove a backup schedule; does nothing when the project has none.
+mooship_unschedule_backup() {
+    local unit directory="${UNIT_DIR:-/etc/systemd/system}"
+    unit=$(mooship_backup_unit "$1")
+    [[ -e "$directory/$unit.timer" || -e "$directory/$unit.service" ]] || return 0
+    systemctl disable --now "$unit.timer" >/dev/null 2>&1 || true
+    rm -f -- "$directory/$unit.timer" "$directory/$unit.service"
+    systemctl daemon-reload
+    printf '[INFO] Removed the backup schedule %s.timer\n' "$unit"
+}
+
 mooship_read_env() {
     python3 "$SCRIPT_DIR/lib/state.py" env "$1" "$2"
 }

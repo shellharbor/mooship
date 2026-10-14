@@ -92,7 +92,7 @@ restore_database /dev/stdin
         self.assertEqual(owner.stdout.strip(), b"nativeuser")
 
     def test_mysql_dump_restores_data(self):
-        name = self.container("mysql:9.1", {
+        name = self.container("mysql:8.4", {
             "MYSQL_USER": "testuser", "MYSQL_DATABASE": "testsite",
             "MYSQL_PASSWORD": "Synthetic_Mysql_123", "MYSQL_ROOT_PASSWORD": "Synthetic_Root_123",
         }, "/var/run/mysqld")

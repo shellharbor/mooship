@@ -10,7 +10,7 @@ set -euo pipefail
 #
 # Result:
 #   - project /var/www/staging, site https://staging.example.com
-#   - .config/nginx/.htpasswd (created through docker run httpd:alpine htpasswd)
+#   - .config/nginx/.htpasswd (created through docker run httpd:2.4-alpine htpasswd)
 #   - auth_basic in the project's nginx HTTPS server block protects EVERYTHING,
 #     including .php, /admin, web services, and the mobile app
 #   - AUTH_USER / AUTH_PASSWORD saved in /var/www/staging/.env

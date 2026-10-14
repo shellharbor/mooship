@@ -2,24 +2,23 @@
 set -euo pipefail
 
 # ============================================================
-# 03-moodle-5-version.sh — a specific Moodle 5.x version
+# 03-moodle-5-version.sh — a Moodle 5.x branch
 # ============================================================
 # Scenario:
-#   Install Moodle 5.1.x. PHP version is omitted: for Moodle 5+,
+#   Install the newest Moodle 5.3 LTS release. PHP version is omitted: for Moodle 5+,
 #   the script selects PHP 8.4 automatically.
 #
 # Result:
 #   - project /var/www/edu5, site https://edu5.example.com
-#   - Moodle 5.1.4 + PHP 8.4, PostgreSQL 17 in a container
+#   - the newest Moodle 5.3.x + PHP 8.4, PostgreSQL 17 in a container
 #   - in 5.1+, web files are in public/: the script switches the nginx document root
 #     to /var/www/html/public; config.php, admin/cli, and cron remain at the code root
 #
 # Before running, replace:
 #   - edu5 / edu5.example.com → your slug and domain
-#   - 5.1.4 → your release (5.0.x uses the old layout without public/);
-#     tag v<version> must exist:
-#       curl -sIL -o /dev/null -w '%{http_code}\n' \
-#         https://github.com/moodle/moodle/archive/refs/tags/v5.1.4.zip   # 200
+#   - 5.3 → another branch (X.Y selects its newest release) or an exact X.Y.Z release
+#     (5.0.x uses the old layout without public/); list the available releases with:
+#       git ls-remote --tags --refs https://github.com/moodle/moodle 'refs/tags/v5.3.*'
 #   - admin@example.com → your email
 #
 # Run on the server from the mooship directory (for example, /opt/mooship):
@@ -33,6 +32,6 @@ DEPLOY_DIR="${DEPLOY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 sudo bash "$DEPLOY_DIR/deploy-moodle.sh" \
   --slug edu5 \
   --domain edu5.example.com \
-  --moodle-version 5.1.4 \
+  --moodle-version 5.3 \
   --db-type postgres \
   --ssl-email admin@example.com

@@ -9,7 +9,7 @@ umask 077
 #   sudo bash deploy-moodle.sh \
 #     --slug lms \
 #     --domain lms.example.com \
-#     --moodle-version 4.5.0 \
+#     --moodle-version 4.5 \
 #     --db-type postgres \
 #     --ssl-email admin@example.com
 #
@@ -26,10 +26,12 @@ umask 077
 #   --endpoint URL               Send project data (JSON, PUT) to URL
 #
 # Moodle:
-#   --moodle-version X.Y.Z       Moodle version (GitHub tag vX.Y.Z, default 4.5.0)
+#   --moodle-version X.Y[.Z]     Moodle release (GitHub tag vX.Y.Z); X.Y selects the newest
+#                                X.Y.Z release (default 4.5)
 #   --php-version X.Y            PHP version: 7.4, 8.0–8.4 (defaults according to Moodle version)
 #   --moodle-admin-user USER     Administrator login (default admin)
 #   --moodle-admin-password PASS Administrator password (generated if omitted)
+#   --moodle-admin-email EMAIL   Administrator email (default <admin-user>@<domain>)
 #   --moodle-site-fullname NAME  Full site name (default "Moodle Site - <slug>")
 #   --moodle-site-shortname NAME Short site name (default <slug>)
 #
@@ -45,8 +47,20 @@ umask 077
 #   --port-mysql     3400–3600      --port-postgres  5500–5800
 #   Native databases default to port 3306 / 5432.
 #
+# Outgoing mail (without SMTP, Moodle cannot deliver mail from the container):
+#   --smtp-host HOST[:PORT]      SMTP server, for example smtp.example.com:587
+#   --smtp-secure tls|ssl|none   Encryption (default: ssl for port 465, otherwise tls)
+#   --smtp-user USER             SMTP username (omit for an unauthenticated relay)
+#   --smtp-password PASS         SMTP password (stored only in Moodle's settings)
+#   --noreply-email EMAIL        No-reply sender address (Moodle default: noreply@<domain>)
+#
+# Resources:
+#   --profile auto|small|medium|large
+#                                PHP-FPM workers and database memory per site (default auto:
+#                                host RAM divided among Mooship projects; see README)
+#
 # Other options:
-#   --redis-password PASS        Redis password
+#   --redis-password PASS        Redis password (also used for Moodle sessions)
 #   --create-dhparam             Create dhparam.pem for SSL (takes several minutes)
 #   --enable-basic-auth          Enable HTTP Basic Authentication
 #   --auth-user USER             Basic Auth username (generated if omitted)
@@ -60,8 +74,11 @@ umask 077
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 WWW_DIR="/var/www"
 PROXY_DIR="${WWW_DIR}/nginxproxy"
+LOGROTATE_DIR="/etc/logrotate.d"
+MEMINFO_FILE="/proc/meminfo"
 APP_TYPE="moodle"
 TEMPLATE_DIR="${SCRIPT_DIR}/${APP_TYPE}"
+MOODLE_REPOSITORY="https://github.com/moodle/moodle"
 source "${SCRIPT_DIR}/lib/common.sh"
 
 # ======================== Colors =============================
@@ -222,6 +239,8 @@ services:
   nginxproxy:
     container_name: nginxproxy
     restart: always
+    # Bound the proxy's stdout/stderr logs, which receive the access and error logs of all sites
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "3"}}
     build:
       context: .
       dockerfile: nginx.Dockerfile
@@ -239,6 +258,39 @@ volumes:
 DCEOF
 
     info "nginxproxy initialized in ${PROXY_DIR}"
+}
+
+# ==================== Rotate project nginx logs ====================
+# Project nginx writes its logs to the host (nginxproxy/logs/<slug>) through a bind mount,
+# where Docker's log limits do not apply. copytruncate avoids signalling each container.
+ensure_logrotate() {
+    local CONFIG="${LOGROTATE_DIR}/mooship"
+
+    if [[ ! -d "$LOGROTATE_DIR" ]]; then
+        warn "logrotate is not installed; rotate ${PROXY_DIR}/logs/*/*.log manually"
+        return 0
+    fi
+    if [[ -e "$CONFIG" ]]; then
+        info "logrotate configuration already exists: ${CONFIG}"
+        return 0
+    fi
+
+    info "Creating logrotate configuration ${CONFIG}..."
+    cat > "$CONFIG" <<EOF
+# Managed by Mooship: project nginx logs written through bind mounts.
+${PROXY_DIR}/logs/*/*.log {
+    daily
+    rotate 14
+    maxsize 100M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}
+EOF
+    chmod 644 "$CONFIG"
 }
 
 # ==================== Create dhparam.pem ===================
@@ -267,7 +319,8 @@ create_dhparam() {
 # ==================== Parse arguments ====================
 SLUG=""
 DOMAIN=""
-MOODLE_VERSION="4.5.0"
+# A MAJOR.MINOR branch is resolved to its newest release by resolve_moodle_version
+MOODLE_VERSION="4.5"
 PHP_VERSION=""
 PORT_HTTP=""
 PORT_HTTPS=""
@@ -298,6 +351,22 @@ MOODLE_ADMIN_PASSWORD=""
 MOODLE_ADMIN_EMAIL=""
 MOODLE_SITE_FULLNAME=""
 MOODLE_SITE_SHORTNAME=""
+SMTP_HOST=""
+SMTP_SECURE=""
+SMTP_USER=""
+SMTP_PASSWORD=""
+NOREPLY_EMAIL=""
+PROFILE="auto"
+PHP_FPM_MAX_CHILDREN=""
+PHP_FPM_START_SERVERS=""
+PHP_FPM_MIN_SPARE_SERVERS=""
+PHP_FPM_MAX_SPARE_SERVERS=""
+PG_SHARED_BUFFERS=""
+PG_EFFECTIVE_CACHE_SIZE=""
+PG_WORK_MEM=""
+PG_MAINTENANCE_WORK_MEM=""
+DB_SHM_SIZE=""
+MYSQL_INNODB_BUFFER_POOL_SIZE=""
 CREATE_BACKUP=false
 BACKUP_FILE_PATH=""
 
@@ -316,6 +385,13 @@ parse_args() {
             --moodle-admin-password)  MOODLE_ADMIN_PASSWORD="$2";  shift 2 ;;
             --moodle-site-fullname)   MOODLE_SITE_FULLNAME="$2";   shift 2 ;;
             --moodle-site-shortname)  MOODLE_SITE_SHORTNAME="$2";  shift 2 ;;
+            --moodle-admin-email)     MOODLE_ADMIN_EMAIL="$2";     shift 2 ;;
+            --smtp-host)              SMTP_HOST="$2";              shift 2 ;;
+            --smtp-secure)            SMTP_SECURE="$2";            shift 2 ;;
+            --smtp-user)              SMTP_USER="$2";              shift 2 ;;
+            --smtp-password)          SMTP_PASSWORD="$2";          shift 2 ;;
+            --noreply-email)          NOREPLY_EMAIL="$2";          shift 2 ;;
+            --profile)                PROFILE="$2";                shift 2 ;;
             --create-backup)          CREATE_BACKUP=true;          shift 1 ;;
             --port-http)              PORT_HTTP="$2";              shift 2 ;;
             --port-https)             PORT_HTTPS="$2";             shift 2 ;;
@@ -377,9 +453,8 @@ parse_args() {
 
     # --- Validate the Moodle version (MAJOR.MINOR is needed to select PHP) ---
     if ! [[ "$MOODLE_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-        error "Invalid Moodle version format: ${MOODLE_VERSION}. Expected X.Y.Z (for example: 4.5.0)"
+        error "Invalid Moodle version format: ${MOODLE_VERSION}. Expected X.Y or X.Y.Z (for example: 4.5 or 4.5.15)"
     fi
-    info "Moodle version ${MOODLE_VERSION} will be installed"
 
     # --- Generate a Redis password if omitted ---
     if [[ -z "$REDIS_PASSWORD" ]]; then
@@ -436,12 +511,105 @@ parse_args() {
     fi
 
     mooship_validate_database_settings
+    # The Redis password is written into config.php for Moodle sessions
+    [[ "$REDIS_PASSWORD" =~ ^[A-Za-z0-9@%_+-]+$ ]] ||
+        error "The Redis password contains unsupported characters (allowed: A-Za-z0-9@%_+-)"
+    validate_mail_settings
+    case "$PROFILE" in
+        auto|small|medium|large) ;;
+        *) error "--profile must be auto, small, medium, or large, received: ${PROFILE}" ;;
+    esac
     if [[ -n "$ENDPOINT" && "$ENDPOINT" != https://* ]]; then
         error "An endpoint receiving credentials must use HTTPS"
     fi
     if [[ ! -d "$TEMPLATE_DIR" ]]; then
         error "Template directory not found: ${TEMPLATE_DIR}"
     fi
+}
+
+# ==================== Validate mail settings ====================
+validate_email() {
+    [[ "$2" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || error "$1 must be an email address: $2"
+}
+
+validate_mail_settings() {
+    [[ -z "$MOODLE_ADMIN_EMAIL" ]] || validate_email --moodle-admin-email "$MOODLE_ADMIN_EMAIL"
+    [[ -z "$NOREPLY_EMAIL" ]] || validate_email --noreply-email "$NOREPLY_EMAIL"
+    if [[ -z "$SMTP_HOST" ]]; then
+        [[ -z "${SMTP_USER}${SMTP_PASSWORD}${SMTP_SECURE}" ]] ||
+            error "--smtp-user, --smtp-password, and --smtp-secure require --smtp-host"
+        return 0
+    fi
+    [[ "$SMTP_HOST" =~ ^[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] ||
+        error "Invalid --smtp-host: ${SMTP_HOST} (expected HOST or HOST:PORT)"
+    if [[ -z "$SMTP_SECURE" ]]; then
+        # Port 465 uses implicit TLS; submission ports (587, 25) use STARTTLS
+        if [[ "$SMTP_HOST" == *:465 ]]; then SMTP_SECURE=ssl; else SMTP_SECURE=tls; fi
+    fi
+    case "$SMTP_SECURE" in
+        tls|ssl|none) ;;
+        *) error "--smtp-secure must be tls, ssl, or none, received: ${SMTP_SECURE}" ;;
+    esac
+    if [[ -n "$SMTP_USER" ]]; then
+        [[ "$SMTP_USER" =~ ^[A-Za-z0-9._%+@=-]+$ ]] || error "The SMTP username contains unsupported characters"
+    fi
+    [[ -z "$SMTP_PASSWORD" || -n "$SMTP_USER" ]] || error "--smtp-password requires --smtp-user"
+    [[ "$SMTP_PASSWORD" != *$'\n'* ]] || error "The SMTP password must not contain line breaks"
+}
+
+# ==================== Resource profile ====================
+# Mooship projects on this host (directories with docker-compose.yml), plus the new one
+count_projects() {
+    local COUNT=1 DIR
+    for DIR in "$WWW_DIR"/*/; do
+        if [[ -f "${DIR}docker-compose.yml" && "$(basename "$DIR")" != nginxproxy ]]; then
+            COUNT=$((COUNT + 1))
+        fi
+    done
+    echo "$COUNT"
+}
+
+# Size PHP-FPM and the database for the memory one site can expect:
+# small ~2 GB, medium ~4 GB, large 8 GB or more. auto divides host RAM among projects.
+select_resource_profile() {
+    if [[ "$PROFILE" == auto ]]; then
+        local MEMORY_MIB PROJECTS SHARE
+        MEMORY_MIB=$(awk '/^MemTotal:/ { print int($2 / 1024) }' "$MEMINFO_FILE" 2>/dev/null || true)
+        if [[ ! "$MEMORY_MIB" =~ ^[0-9]+$ ]]; then
+            warn "Could not read host memory from ${MEMINFO_FILE}; using the small profile"
+            PROFILE=small
+        else
+            PROJECTS=$(count_projects)
+            SHARE=$((MEMORY_MIB / PROJECTS))
+            if ((SHARE < 3072)); then PROFILE=small
+            elif ((SHARE < 6144)); then PROFILE=medium
+            else PROFILE=large; fi
+            info "Resource profile: ${PROFILE} (${MEMORY_MIB} MiB RAM shared by ${PROJECTS} project(s))"
+        fi
+    else
+        info "Resource profile: ${PROFILE}"
+    fi
+
+    case "$PROFILE" in
+        small)
+            PHP_FPM_MAX_CHILDREN=8
+            PG_SHARED_BUFFERS=256MB; PG_EFFECTIVE_CACHE_SIZE=768MB
+            PG_WORK_MEM=8MB; PG_MAINTENANCE_WORK_MEM=64MB; DB_SHM_SIZE=256mb
+            MYSQL_INNODB_BUFFER_POOL_SIZE=256M ;;
+        medium)
+            PHP_FPM_MAX_CHILDREN=16
+            PG_SHARED_BUFFERS=512MB; PG_EFFECTIVE_CACHE_SIZE=1536MB
+            PG_WORK_MEM=16MB; PG_MAINTENANCE_WORK_MEM=128MB; DB_SHM_SIZE=512mb
+            MYSQL_INNODB_BUFFER_POOL_SIZE=768M ;;
+        large)
+            PHP_FPM_MAX_CHILDREN=32
+            PG_SHARED_BUFFERS=1GB; PG_EFFECTIVE_CACHE_SIZE=4GB
+            PG_WORK_MEM=32MB; PG_MAINTENANCE_WORK_MEM=256MB; DB_SHM_SIZE=1gb
+            MYSQL_INNODB_BUFFER_POOL_SIZE=2G ;;
+    esac
+    PHP_FPM_START_SERVERS=$((PHP_FPM_MAX_CHILDREN / 4))
+    PHP_FPM_MIN_SPARE_SERVERS=$((PHP_FPM_MAX_CHILDREN / 8))
+    PHP_FPM_MAX_SPARE_SERVERS=$((PHP_FPM_MAX_CHILDREN / 2))
 }
 
 # ==================== Assign ports ====================
@@ -492,6 +660,30 @@ assign_ports() {
     fi
 }
 
+# ==================== Resolve the Moodle release ==============
+# MAJOR.MINOR selects the newest stable release tag of that branch (vX.Y.Z, no beta/rc);
+# an explicit X.Y.Z is used as-is.
+resolve_moodle_version() {
+    if ! [[ "$MOODLE_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        info "Moodle version ${MOODLE_VERSION} will be installed"
+        return 0
+    fi
+
+    ensure_packages git
+    info "Looking up the latest Moodle ${MOODLE_VERSION} release..."
+    local TAGS LATEST
+    TAGS=$(git ls-remote --tags --refs "$MOODLE_REPOSITORY" "refs/tags/v${MOODLE_VERSION}.*") ||
+        error "Could not list Moodle release tags from ${MOODLE_REPOSITORY}"
+    LATEST=$(awk -v prefix="refs/tags/v${MOODLE_VERSION}." '
+        index($2, prefix) == 1 && substr($2, length(prefix) + 1) ~ /^[0-9]+$/ {
+            print substr($2, length("refs/tags/v") + 1)
+        }' <<< "$TAGS" | sort -V | tail -n 1)
+    [[ -n "$LATEST" ]] || error "No stable Moodle ${MOODLE_VERSION}.x release found in ${MOODLE_REPOSITORY}"
+
+    MOODLE_VERSION="$LATEST"
+    info "Moodle version ${MOODLE_VERSION} (latest ${MOODLE_VERSION%.*} release) will be installed"
+}
+
 # ==================== Select the PHP version for Moodle ==============
 select_php_version_for_moodle() {
     if [[ -n "$PHP_VERSION" ]]; then
@@ -522,7 +714,7 @@ select_php_version_for_moodle() {
         # Moodle 4.5: PHP 8.1-8.3 (recommend 8.3)
         elif [[ "$MOODLE_MAJOR" -eq 4 && "$MOODLE_MINOR" -eq 5 ]]; then
             PHP_VERSION="8.3"
-        # Moodle 5+: PHP 8.2-8.4 (recommend 8.4)
+        # Moodle 5.0-5.2: PHP 8.2-8.4; 5.3: PHP 8.3-8.4 (recommend 8.4)
         elif [[ "$MOODLE_MAJOR" -ge 5 ]]; then
             PHP_VERSION="8.4"
         else
@@ -680,6 +872,29 @@ write_project_env() {
         echo "DB_NATIVE=${DB_NATIVE}"
         echo "PHP_VERSION=${PHP_VERSION}"
         echo "MOODLE_VERSION=${MOODLE_VERSION}"
+        echo ""
+        echo "# Resource profile: edit the values below, then run docker compose up -d"
+        echo "MOOSHIP_PROFILE=${PROFILE}"
+        echo "PHP_FPM_MAX_CHILDREN=${PHP_FPM_MAX_CHILDREN}"
+        echo "PHP_FPM_START_SERVERS=${PHP_FPM_START_SERVERS}"
+        echo "PHP_FPM_MIN_SPARE_SERVERS=${PHP_FPM_MIN_SPARE_SERVERS}"
+        echo "PHP_FPM_MAX_SPARE_SERVERS=${PHP_FPM_MAX_SPARE_SERVERS}"
+        if [[ "$DB_NATIVE" != true && "$DB_TYPE" == "postgres" ]]; then
+            echo "PG_SHARED_BUFFERS=${PG_SHARED_BUFFERS}"
+            echo "PG_EFFECTIVE_CACHE_SIZE=${PG_EFFECTIVE_CACHE_SIZE}"
+            echo "PG_WORK_MEM=${PG_WORK_MEM}"
+            echo "PG_MAINTENANCE_WORK_MEM=${PG_MAINTENANCE_WORK_MEM}"
+            echo "DB_SHM_SIZE=${DB_SHM_SIZE}"
+        elif [[ "$DB_NATIVE" != true ]]; then
+            echo "MYSQL_INNODB_BUFFER_POOL_SIZE=${MYSQL_INNODB_BUFFER_POOL_SIZE}"
+        fi
+        if [[ -n "$SMTP_HOST" ]]; then
+            echo ""
+            echo "# Outgoing mail; the SMTP password is stored only in Moodle's settings"
+            echo "SMTP_HOST=${SMTP_HOST}"
+            echo "SMTP_SECURE=${SMTP_SECURE}"
+            echo "SMTP_USER=${SMTP_USER}"
+        fi
         if [[ "$ENABLE_BASIC_AUTH" == true ]]; then
             echo ""
             echo "AUTH_USER=${AUTH_USER}"
@@ -746,7 +961,7 @@ create_project() {
     if [[ "$ENABLE_BASIC_AUTH" == true ]]; then
         info "Creating the .htpasswd file for Basic Authentication..."
         mkdir -p "${PROJECT_DIR}/.config/nginx"
-        printf '%s\n' "$AUTH_PASSWORD" | docker run --rm -i httpd:alpine htpasswd -ni "$AUTH_USER" > "${PROJECT_DIR}/.config/nginx/.htpasswd"
+        printf '%s\n' "$AUTH_PASSWORD" | docker run --rm -i httpd:2.4-alpine htpasswd -ni "$AUTH_USER" > "${PROJECT_DIR}/.config/nginx/.htpasswd"
         chmod 644 "${PROJECT_DIR}/.config/nginx/.htpasswd"
 
         if [[ -s "${PROJECT_DIR}/.config/nginx/.htpasswd" ]]; then
@@ -784,6 +999,11 @@ update_proxy_nginx_conf() {
         fi
 
         cp "$SOURCE_TEMPLATE" "$TEMPLATE"
+    fi
+    # The proxy keeps its own copy of the template so local changes are never overwritten
+    if ! cmp -s "$TEMPLATE" "${SCRIPT_DIR}/nginxproxy/site-template.conf"; then
+        warn "${TEMPLATE} differs from the bundled template; the new site uses the local copy."
+        warn "See README, \"Updating an existing server\", to adopt the current proxy template."
     fi
 
     # Check whether the sites directory is mounted in docker-compose.yml
@@ -1187,7 +1407,7 @@ install_moodle() {
     mkdir -p "${TEMP_DIR}" "${PROJECT_DIR}/public_html"
 
     # URL for downloading Moodle from GitHub
-    local MOODLE_URL="https://github.com/moodle/moodle/archive/refs/tags/v${MOODLE_VERSION}.zip"
+    local MOODLE_URL="${MOODLE_REPOSITORY}/archive/refs/tags/v${MOODLE_VERSION}.zip"
 
     info "Downloading Moodle from ${MOODLE_URL}..."
     if ! wget -q "${MOODLE_URL}" -O "${TEMP_DIR}/moodle.zip"; then
@@ -1310,6 +1530,20 @@ global \$CFG;
 
 \$CFG->directorypermissions = 0777;
 
+// nginx serves moodledata files (location ^~ /dataroot/ in .config/nginx/_site.conf).
+\$CFG->xsendfile = 'X-Accel-Redirect';
+\$CFG->xsendfilealiases = array('/dataroot/' => \$CFG->dataroot);
+
+// nginx sends unknown paths to r.php (Moodle 4.5+ routing engine); older releases ignore this.
+\$CFG->routerconfigured = true;
+
+// PHP sessions in the project's Redis container (password: REDIS_PASSWORD in .env).
+\$CFG->session_handler_class = '\core\session\redis';
+\$CFG->session_redis_host = '${SLUG}_redis';
+\$CFG->session_redis_port = 6379;
+\$CFG->session_redis_auth = '${REDIS_PASSWORD}';
+\$CFG->session_redis_prefix = 'mdl_session_';
+
 require_once(__DIR__ . '/lib/setup.php');
 
 // There is no php closing tag in this file,
@@ -1359,7 +1593,7 @@ install_moodle_database() {
 
     local ADMIN_USER="${MOODLE_ADMIN_USER:-admin}"
     local ADMIN_PASSWORD="${MOODLE_ADMIN_PASSWORD:-$(generate_random_password)}"
-    local ADMIN_EMAIL="${ADMIN_USER}@${DOMAIN}"
+    local ADMIN_EMAIL="${MOODLE_ADMIN_EMAIL:-${ADMIN_USER}@${DOMAIN}}"
 
     local SITE_FULLNAME="${MOODLE_SITE_FULLNAME:-Moodle Site - ${SLUG}}"
     local SITE_SHORTNAME="${MOODLE_SITE_SHORTNAME:-${SLUG}}"
@@ -1428,6 +1662,39 @@ install_moodle_database() {
     fi
 
     cd "${SCRIPT_DIR}" || true
+}
+
+# ==================== Configure outgoing mail ==============
+# Regular Moodle settings, editable later in Site administration > Server > Email.
+# Values travel as environment variables of docker exec, never as command-line arguments,
+# so the SMTP password does not appear in process listings.
+configure_moodle_mail() {
+    [[ -n "$SMTP_HOST" || -n "$NOREPLY_EMAIL" ]] || return 0
+
+    info "Configuring Moodle outgoing mail..."
+    local SECURE="$SMTP_SECURE"
+    [[ "$SECURE" != none ]] || SECURE=""
+    MOOSHIP_SMTPHOSTS="$SMTP_HOST" MOOSHIP_SMTPSECURE="$SECURE" MOOSHIP_SMTPUSER="$SMTP_USER" \
+    MOOSHIP_SMTPPASS="$SMTP_PASSWORD" MOOSHIP_NOREPLYADDRESS="$NOREPLY_EMAIL" \
+        docker exec -i -e MOOSHIP_SMTPHOSTS -e MOOSHIP_SMTPSECURE -e MOOSHIP_SMTPUSER \
+            -e MOOSHIP_SMTPPASS -e MOOSHIP_NOREPLYADDRESS "${SLUG}_php" php <<'PHP' ||
+<?php
+define('CLI_SCRIPT', true);
+require('/var/www/html/config.php');
+if (getenv('MOOSHIP_SMTPHOSTS') !== '') {
+    foreach (['smtphosts', 'smtpsecure', 'smtpuser', 'smtppass'] as $name) {
+        set_config($name, (string) getenv('MOOSHIP_' . strtoupper($name)));
+    }
+}
+if (getenv('MOOSHIP_NOREPLYADDRESS') !== '') {
+    set_config('noreplyaddress', getenv('MOOSHIP_NOREPLYADDRESS'));
+}
+PHP
+        error "Could not configure outgoing mail. Set it in Site administration > Server > Email > Outgoing mail configuration"
+
+    if [[ -n "$SMTP_HOST" ]]; then
+        success "Moodle sends mail through ${SMTP_HOST} (${SMTP_SECURE})"
+    fi
 }
 
 # ==================== Obtain an SSL certificate ===========
@@ -1607,6 +1874,17 @@ print_summary() {
     echo ""
     echo "REDIS:"
     echo "  Password: saved in .env (REDIS_PASSWORD)"
+    echo "  Used for:       Moodle sessions"
+    echo ""
+    echo "RESOURCES:"
+    echo "  Profile:        ${PROFILE} (PHP-FPM workers: ${PHP_FPM_MAX_CHILDREN}; values in .env)"
+    echo ""
+    echo "MAIL:"
+    if [[ -n "$SMTP_HOST" ]]; then
+        echo "  SMTP:           ${SMTP_HOST} (${SMTP_SECURE})"
+    else
+        echo "  SMTP:           not configured; Moodle cannot deliver email (see --smtp-host)"
+    fi
     echo ""
     if [[ "$DB_TYPE" == "mysql" ]]; then
         echo "MYSQL:"
@@ -1655,6 +1933,12 @@ print_summary() {
     echo "  Check container status:"
     echo "       cd ${WWW_DIR}/${SLUG} && docker compose ps"
     echo ""
+    echo "  Check the site's health (containers, HTTP, certificate, Moodle, mail, backups):"
+    echo "       sudo bash ${SCRIPT_DIR}/doctor.sh --slug ${SLUG}"
+    echo ""
+    echo "  Schedule daily backups (keeps 7 archives by default):"
+    echo "       sudo bash ${SCRIPT_DIR}/schedule-backup.sh --slug ${SLUG}"
+    echo ""
 
     if [[ -n "$BACKUP_FILE_PATH" ]]; then
         echo "BACKUP:"
@@ -1679,7 +1963,9 @@ main() {
     mooship_require_new_project
     assign_ports
     info "Arguments processed successfully"
+    resolve_moodle_version
     select_php_version_for_moodle
+    select_resource_profile
     install_docker
     mooship_require_docker
     mooship_require_unused_resources
@@ -1690,6 +1976,7 @@ main() {
     fi
     ensure_www_dir
     init_nginxproxy
+    ensure_logrotate
     create_dhparam
     create_project
     comment_ssl_blocks
@@ -1698,6 +1985,7 @@ main() {
     install_moodle
     configure_moodle_config
     install_moodle_database
+    configure_moodle_mail
     # Publish upstreams only after the application and its Docker network exist.
     update_proxy_nginx_conf
     update_proxy_docker_compose

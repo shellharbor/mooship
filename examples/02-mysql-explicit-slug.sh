@@ -10,8 +10,8 @@ set -euo pipefail
 #
 # Result:
 #   - project /var/www/lms, site https://lms.example.com
-#   - MySQL 9.1 in container lms_db (config.php: dbhost=lms_db, dbport=3306)
-#   - Moodle 4.5.0 + PHP 8.3, generated passwords and database names
+#   - MySQL 8.4 in container lms_db (config.php: dbhost=lms_db, dbport=3306)
+#   - the newest Moodle 4.5.x + PHP 8.3, generated passwords and database names
 #
 # Before running, replace:
 #   - lms / lms.example.com → your slug (lowercase letters and digits) and domain

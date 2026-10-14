@@ -473,6 +473,8 @@ remove_native_database() {
 # ==================== Retain backup archives =========
 remove_backup_archive() {
     info "Backups retained. Removing the project does not remove archives."
+    # A schedule left behind would fail every night for the missing project
+    mooship_unschedule_backup "$SLUG"
 }
 
 # ==================== Remove the project directory =========
@@ -512,7 +514,7 @@ print_summary() {
     echo "  ✓ Project containers stopped"
     echo "  ✓ All project volumes removed"
     echo "  ✓ Project network removed"
-    echo "  ✓ Backups retained"
+    echo "  ✓ Backups retained; backup schedule (schedule-backup.sh) removed"
     echo "  ✓ Project directory ${PROJECT_DIR} removed"
     echo ""
     echo "============================================================"
