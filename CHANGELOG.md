@@ -35,6 +35,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- 2026-10-15: verified the host preflight implementation in GitHub E2E run 38787890321 at ff1fbf2: all four Moodle 4.5/5.3 and PostgreSQL/MySQL cases passed, including router/API/shims, SMTP, cron, backups, systemd schedules and doctor. Local validation passed 108 regressions (120 discovered, 12 opt-in skipped), both real host-gateway DB probes, HTTP/HTTPS and Compose/proxy checks. Dependency Review remains separately blocked by disabled repository Dependency Graph.
+
 - 2026-10-15: install locked production dependencies when Moodle declares league/oauth2-server, fixing the verified missing ScopeTrait fatal error on fresh Moodle 5.3 API requests. Run Composer as the PHP container user with a pinned, SHA-256-verified PHAR, without developer packages, scripts or plugins, and verify the required trait before Moodle initialization.
 
 - 2026-10-15: route removed PHP script paths through Moodle's router while preserving FastCGI slash arguments, original URLs and query parameters. Added real HTTP/HTTPS regressions and E2E assertions for both Moodle 5.3 shim redirects; a missing router returns 404 rather than looping.
