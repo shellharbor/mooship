@@ -163,7 +163,7 @@ services:
     networks:
       - "{SLUG}"
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: "{SLUG}_redis"
     restart: always
     logging: *default-logging
