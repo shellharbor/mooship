@@ -17,6 +17,8 @@ Add process health for FPM/nginx/Redis, bounded waits, and explicit DB authentic
 
 Validate and reload nginx after Moodle configuration selects the document root. Preserve the configuration inode because nginx uses a single-file bind mount; replacing it leaves the container reading the old file. Health of the nginx process alone cannot prove that its loaded configuration matches a changed file. Wait for resumed service health before E2E runs doctor after backups.
 
+Install locked production dependencies when Moodle declares league/oauth2-server. Fresh 5.3 source archives can initialize the DB but fail HTTP API middleware with a missing ScopeTrait. Use a temporary Composer PHAR pinned by version and SHA-256 inside the existing PHP container, running as its normal user with scripts/plugins/dev packages disabled. Preserve platform checks and verify the trait before schema initialization. Older manifests retain their bundled-dependency path; existing archive vendor files are preserved.
+
 ## Alternatives and consequences
 
 - A detected bridge IP alone still couples generated settings to host topology; host-gateway plus an explicit override permits controlled configuration changes.
@@ -25,5 +27,6 @@ Validate and reload nginx after Moodle configuration selects the document root. 
 - Liveness should not restart PHP/nginx for an unrelated DB outage; DB authentication is a separate deployment gate.
 - Partial deployment resources remain for explicit recovery. Automatic destructive cleanup is not introduced.
 - Old archives retain their original endpoint; migrating it requires an explicit change, not a silent restore rewrite.
+- An unverified latest Composer download or dependency update would make initialization unpredictable. The pinned tool and existing lockfile bound this step; outbound package access is required only during installation.
 
 See [preflight operations](../PREFLIGHT.md) and the regression/host-gateway tests for the contract and verification limits.

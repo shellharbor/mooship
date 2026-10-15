@@ -35,6 +35,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- 2026-10-15: install locked production dependencies when Moodle declares league/oauth2-server, fixing the verified missing ScopeTrait fatal error on fresh Moodle 5.3 API requests. Run Composer as the PHP container user with a pinned, SHA-256-verified PHAR, without developer packages, scripts or plugins, and verify the required trait before Moodle initialization.
+
 - 2026-10-15: route removed PHP script paths through Moodle's router while preserving FastCGI slash arguments, original URLs and query parameters. Added real HTTP/HTTPS regressions and E2E assertions for both Moodle 5.3 shim redirects; a missing router returns 404 rather than looping.
 
 - 2026-10-15: resolve the synthetic E2E site domain inside PHP through a dedicated internal Docker network alias, allowing Moodle 5.3 router self-checks to reach the shared proxy. Added explicit routed HTTP status checks and detailed router diagnostics without weakening doctor.

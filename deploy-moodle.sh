@@ -1541,7 +1541,7 @@ configure_moodle_config() {
         DB_PASS="$DB_MYSQL_PASSWORD"
     fi
 
-    # Native database: Docker bridge IP and host port.
+    # Native database: container-reachable host address and host port.
     # Container database: container name and internal port (the external .env port does not listen inside the network)
     if [[ "$DB_NATIVE" == true ]]; then
         DB_HOST_VALUE="${NATIVE_DB_HOST:-host.docker.internal}"
@@ -2032,6 +2032,7 @@ main() {
     create_native_database
     (cd "$PROJECT_DIR" && mooship_check_database connect) || error "PHP cannot authenticate to the selected database"
     install_moodle
+    install_moodle_dependencies
     configure_moodle_config
     reload_project_nginx
     install_moodle_database

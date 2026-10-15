@@ -81,3 +81,10 @@ reload_project_nginx() {
     (cd "$PROJECT_DIR" && docker compose exec -T nginx nginx -t &&
         docker compose exec -T nginx nginx -s reload) || error "Could not apply the project's nginx configuration"
 }
+
+install_moodle_dependencies() {
+    (cd "$PROJECT_DIR" && docker compose exec -T \
+        -e COMPOSER_HOME=/tmp/mooship-composer-home -e COMPOSER_CACHE_DIR=/tmp/mooship-composer-cache \
+        php sh < "$SCRIPT_DIR/lib/install-dependencies.sh") ||
+        error "Could not install and verify Moodle's locked PHP dependencies"
+}

@@ -422,7 +422,7 @@ The steps below follow the invocation order in `main()`.
 | 6 | `create_project`, `comment_ssl_blocks` | Copy the template, write a private `.env`, and configure the site without SSL until a certificate is available |
 | 7 | `build_and_start_project` | Build/start PHP, nginx, Redis and DB; wait for process health and check native TCP reachability |
 | 8 | `create_native_database`, PHP DB probe | Create and mark the native DB/user when selected; authenticate from PHP before Moodle initialization |
-| 9 | `install_moodle`, `configure_moodle_config`, `reload_project_nginx` | Install Moodle code and `config.php`; validate/reload nginx after selecting `public/` for 5.1+ |
+| 9 | `install_moodle`, `install_moodle_dependencies`, `configure_moodle_config`, `reload_project_nginx` | Install Moodle code, declared locked production dependencies and `config.php`; validate/reload nginx after selecting `public/` for 5.1+ |
 | 10 | `install_moodle_database`, `configure_moodle_mail`, `start_moodle_cron` | Verify DB state and install through the CLI; save administrator credentials in `.env`; apply SMTP settings and start cron. Failure stops deployment |
 | 11 | `update_proxy_nginx_conf`, `update_proxy_docker_compose`, `comment_ssl_blocks` | Connect the initialized project to the shared proxy for ACME |
 | 12 | `restart_nginxproxy`, `obtain_ssl_certificate` | Check nginx, issue SSL, and enable HTTPS; failure stops deployment |
