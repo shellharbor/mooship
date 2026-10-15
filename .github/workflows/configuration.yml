@@ -1,0 +1,65 @@
+name: Configuration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configuration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    name: Generated Compose configurations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MOOSHIP_COMPOSE_TESTS: '1'
+      MOOSHIP_PROXY_COMPOSE_TESTS: '1'
+      PYTHONPATH: tests
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: PostgreSQL/MySQL, native/container, and proxy lifecycle states
+        run: >
+          python3 -B -m unittest
+          test_scripts.ScriptTests.test_generated_compose_variants_have_safe_ports_and_restart_policy
+          test_proxy_lifecycle.ProxyComposeTests -v
+
+  template:
+    name: Dependabot-readable Compose template
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned CI tools
+        run: python -m pip install -r .github/requirements.txt
+      - name: Parse template without substituting the site slug
+        run: python -B .github/scripts/check_templates.py
+
+  dockerfiles:
+    name: Dockerfile lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check every PHP and nginx Dockerfile
+        # Existing package-version/apt style warnings remain visible; errors fail the job.
+        run: |
+          while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            docker run --rm --read-only --network none -i hadolint/hadolint:v2.15.1 hadolint --failure-threshold error - < "$file"
+          done < <(find moodle/.docker nginxproxy -name '*.Dockerfile' -print0)

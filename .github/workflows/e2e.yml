@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     name: Moodle ${{ matrix.moodle }} + ${{ matrix.db }}
@@ -25,7 +29,9 @@ jobs:
       SLUG: e2e
       DOMAIN: e2e.mooship.test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Resolve the test domain to the runner
         run: echo "127.0.0.1 ${DOMAIN}" | sudo tee -a /etc/hosts

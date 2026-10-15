@@ -1,0 +1,59 @@
+# https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: pip
+    directory: /.github
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      ci-tools:
+        patterns: ['*']
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: docker
+    directories:
+      - /moodle/.docker/php
+      - /moodle/.docker/nginx
+      - /nginxproxy
+    # PHP minor versions are selected by matching phpXX Dockerfiles/ini files.
+    ignore:
+      - dependency-name: php
+        update-types: [version-update:semver-major, version-update:semver-minor]
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: docker-compose
+    directory: /moodle
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build

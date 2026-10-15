@@ -10,7 +10,7 @@ services:
     build:
       context: ./.docker/php
       dockerfile: php${PHP_VERSION}.Dockerfile
-    container_name: {SLUG}_php
+    container_name: "{SLUG}_php"
     restart: always
     logging: *default-logging
     # Moodle stores sessions in Redis (config.php)
@@ -33,14 +33,14 @@ services:
       - ./.config/php/mooship.ini:/usr/local/etc/php/conf.d/zz-mooship.ini:ro
       - ./.config/php/fpm-pool.conf:/usr/local/etc/php-fpm.d/zz-mooship.conf:ro
     networks:
-      - {SLUG}
+      - "{SLUG}"
   nginx:
     build:
       context: ./.docker/nginx
       dockerfile: nginx-1.29.1.Dockerfile
     # Reload the configuration every 6 hours to pick up certificates renewed by certbot_renew
     command: /bin/sh -c 'while :; do sleep 21600 & wait $${!}; nginx -s reload; done & exec nginx -g "daemon off;"'
-    container_name: {SLUG}_nginx
+    container_name: "{SLUG}_nginx"
     restart: always
     logging: *default-logging
     working_dir: /var/www/html
@@ -54,16 +54,16 @@ services:
       - ../nginxproxy/logs/{SLUG}:/var/log/nginx
       # docker cp {SLUG}_nginx:/etc/nginx/nginx.conf /var/www/{SLUG}/.config/nginx/nginx.conf
       #- ./.config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - {SLUG}_ssl_certificates:/etc/letsencrypt:ro
-      - {SLUG}_certbot_www:/var/www/certbot
+      - "{SLUG}_ssl_certificates:/etc/letsencrypt:ro"
+      - "{SLUG}_certbot_www:/var/www/certbot"
       #- ../nginxproxy/dhparam.pem:/etc/ssl/certs/dhparam.pem:ro
       # cd /var/www/{SLUG}/.config/nginx && docker run --rm httpd:2.4-alpine htpasswd -nb USERNAME PASSWORD > .htpasswd
       #- ./.config/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     networks:
-      - {SLUG}
+      - "{SLUG}"
   db_postgres:
     image: postgres:17-alpine
-    container_name: {SLUG}_db_postgres
+    container_name: "{SLUG}_db_postgres"
     restart: always
     logging: *default-logging
     # Memory settings from the resource profile in .env; parallel queries use /dev/shm
@@ -91,16 +91,16 @@ services:
       retries: 24
       start_period: 30s
     volumes:
-      - {SLUG}_db_postgres:/var/lib/postgresql/data
+      - "{SLUG}_db_postgres:/var/lib/postgresql/data"
       # docker cp {SLUG}_db_postgres:/var/lib/postgresql/data/postgresql.conf /var/www/{SLUG}/.config/postgres/postgresql.conf
       #- ./.config/postgres/postgresql.conf:/var/lib/postgresql/data/postgresql.conf:ro
       #- ./.docker/init/postgres:/docker-entrypoint-initdb.d
     networks:
-      - {SLUG}
+      - "{SLUG}"
   db_mysql:
     # 8.4 LTS: Moodle 5.x requires MySQL 8.4+, and Innovation releases (9.x) have short support
     image: mysql:8.4
-    container_name: {SLUG}_db_mysql
+    container_name: "{SLUG}_db_mysql"
     restart: always
     logging: *default-logging
     # Buffer pool from the resource profile in .env
@@ -120,14 +120,14 @@ services:
       retries: 24
       start_period: 30s
     volumes:
-      - {SLUG}_db_mysql:/var/lib/mysql
+      - "{SLUG}_db_mysql:/var/lib/mysql"
       # docker cp {SLUG}_db_mysql:/etc/mysql/my.cnf /var/www/{SLUG}/.config/mysql/my.cnf
       #- ./.config/mysql/my.cnf:/etc/mysql/my.cnf:ro
     networks:
-      - {SLUG}
+      - "{SLUG}"
   permissions:
     image: alpine:3.24
-    container_name: {SLUG}_permissions
+    container_name: "{SLUG}_permissions"
     volumes:
       - ./public_html:/var/www/html
       - ./moodledata:/var/www/moodledata
@@ -140,31 +140,31 @@ services:
         if [ -f /var/www/html/config.php ]; then chmod 600 /var/www/html/config.php; fi
       "
     networks:
-      - {SLUG}
+      - "{SLUG}"
   certbot:
     image: certbot/certbot:v5.8.0
-    container_name: {SLUG}_certbot
+    container_name: "{SLUG}_certbot"
     depends_on:
       - nginx
     volumes:
-      - {SLUG}_ssl_certificates:/etc/letsencrypt
-      - {SLUG}_certbot_www:/var/www/certbot
+      - "{SLUG}_ssl_certificates:/etc/letsencrypt"
+      - "{SLUG}_certbot_www:/var/www/certbot"
     networks:
-      - {SLUG}
+      - "{SLUG}"
   certbot_renew:
     image: certbot/certbot:v5.8.0
-    container_name: {SLUG}_certbot_renew
+    container_name: "{SLUG}_certbot_renew"
     restart: unless-stopped
     logging: *default-logging
     volumes:
-      - {SLUG}_ssl_certificates:/etc/letsencrypt
-      - {SLUG}_certbot_www:/var/www/certbot
+      - "{SLUG}_ssl_certificates:/etc/letsencrypt"
+      - "{SLUG}_certbot_www:/var/www/certbot"
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     networks:
-      - {SLUG}
+      - "{SLUG}"
   redis:
     image: redis:7-alpine
-    container_name: {SLUG}_redis
+    container_name: "{SLUG}_redis"
     restart: always
     logging: *default-logging
     command:
@@ -174,14 +174,14 @@ services:
     ports:
       - "127.0.0.1:${REDIS_PORT}:6379"
     volumes:
-      - {SLUG}_redis_data:/data
+      - "{SLUG}_redis_data:/data"
     networks:
-      - {SLUG}
+      - "{SLUG}"
   cron:
     build:
       context: ./.docker/php
       dockerfile: php${PHP_VERSION}.Dockerfile
-    container_name: {SLUG}_cron
+    container_name: "{SLUG}_cron"
     restart: always
     logging: *default-logging
     depends_on:
@@ -199,21 +199,21 @@ services:
         sleep 60
       done"
     networks:
-      - {SLUG}
+      - "{SLUG}"
 
 networks:
-  {SLUG}:
-    name: {SLUG}
+  "{SLUG}":
+    name: "{SLUG}"
     external: true
 
 volumes:
-  {SLUG}_db_postgres:
-    name: {SLUG}_db_postgres
-  {SLUG}_db_mysql:
-    name: {SLUG}_db_mysql
-  {SLUG}_ssl_certificates:
-    name: {SLUG}_ssl_certificates
-  {SLUG}_certbot_www:
-    name: {SLUG}_certbot_www
-  {SLUG}_redis_data:
-    name: {SLUG}_redis_data
+  "{SLUG}_db_postgres":
+    name: "{SLUG}_db_postgres"
+  "{SLUG}_db_mysql":
+    name: "{SLUG}_db_mysql"
+  "{SLUG}_ssl_certificates":
+    name: "{SLUG}_ssl_certificates"
+  "{SLUG}_certbot_www":
+    name: "{SLUG}_certbot_www"
+  "{SLUG}_redis_data":
+    name: "{SLUG}_redis_data"

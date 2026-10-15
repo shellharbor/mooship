@@ -302,7 +302,30 @@ remove_native_database
         self.assertTrue(all("--port=5543" in command for command in statements))
         self.assertIn('DROP DATABASE IF EXISTS "testsite"', statements[1])
 
-    @unittest.skipUnless(shutil.which("docker"), "Docker Compose CLI required")
+    def test_database_selection_preserves_quoted_volume_keys(self):
+        for engine in ("postgres", "mysql"):
+            for native in ("true", "false"):
+                for quote in ('"', "'", ""):
+                    with self.subTest(engine=engine, native=native, quote=quote):
+                        configuration = (ROOT / "moodle/docker-compose.yml").read_text().replace("{SLUG}", "test")
+                        for backend in ("postgres", "mysql"):
+                            configuration = configuration.replace(
+                                f'"test_db_{backend}":', f'{quote}test_db_{backend}{quote}:')
+                        path = self.directory / "quoted-compose.yml"
+                        path.write_text(configuration, encoding="utf-8")
+                        result = self.bash(
+                            "DB_TYPE=" + engine + "; DB_NATIVE=" + native +
+                            '; configure_compose_db "$TEST_DIR/quoted-compose.yml"')
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        updated = path.read_text()
+                        self.assertNotIn("test_db_postgres", updated)
+                        self.assertNotIn("test_db_mysql", updated)
+                        self.assertEqual("  db:\n" in updated, native == "false")
+                        self.assertEqual('name: "test_db"' in updated, native == "false")
+                        self.assertIn('"test_ssl_certificates":', updated)
+
+    @unittest.skipUnless(os.environ.get("MOOSHIP_COMPOSE_TESTS") == "1" and shutil.which("docker"),
+                         "Opt-in Docker Compose template validation")
     def test_generated_compose_variants_have_safe_ports_and_restart_policy(self):
         import json
         for engine in ("postgres", "mysql"):

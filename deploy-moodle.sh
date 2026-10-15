@@ -782,9 +782,9 @@ for line in lines:
         result.append(line)
         continue
 
-    key = re.match(r'^  ([\w.-]+):\s*$', line)
+    key = re.match(r'''^  (["']?)([\w.-]+)\1:\s*$''', line)
     if key:
-        name = key.group(1)
+        name = key.group(2)
         skipping = (section == 'services' and name in drop_services) or \
                    (section == 'volumes' and name in drop_volumes)
         if not skipping:

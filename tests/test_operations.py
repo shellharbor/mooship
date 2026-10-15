@@ -1,7 +1,6 @@
 """Resource profiles, outgoing mail, backup retention and scheduling, and doctor.sh."""
 
 import os
-from pathlib import Path
 import stat
 
 from test_scripts import ROOT, BashTestCase

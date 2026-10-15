@@ -1,0 +1,13 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Local CI virtual environment and generated reports"
+paths = ['(^|/)\.venv/', '(^|/)\.ci-reports/']
+
+[[allowlists]]
+description = "Deterministic credentials for disposable database test containers"
+condition = "AND"
+paths = ['(^|/)tests/test_database_roundtrip\.py$']
+regexTarget = "secret"
+regexes = ['^Synthetic_(Pg|Mysql|Root)_123$']

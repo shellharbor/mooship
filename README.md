@@ -1,5 +1,7 @@
 # Mooship
 
+![Mooship Moodle deployment](https://i.postimg.cc/R0dVWzn3/mooship-hero-terminal.jpg)
+
 Automated Moodle deployment on Ubuntu. Chosen GitHub repository: [shellharbor/mooship](https://github.com/shellharbor/mooship).
 
 `deploy-moodle.sh` deploys Moodle on an Ubuntu server with a single command. It creates an isolated Docker project (PHP-FPM, nginx, PostgreSQL or MySQL, Redis, cron, certbot), installs Moodle through the CLI, connects the site to the shared `nginxproxy` reverse proxy, and obtains a Let's Encrypt certificate. Companion scripts schedule full backups and check the health of every site.
@@ -1024,6 +1026,8 @@ The **SSL** column shows `YES` when Docker volume `<slug>_ssl_certificates` cont
 
 All utilities match slugs exactly: actions on `lms` do not affect `lms2`.
 
+Proxy lifecycle edits handle active and commented entries, including lists containing comments or blank lines. Other sites retain their configuration and activation state. Empty network and volume collections remain valid, so the last site can be deactivated and later reactivated.
+
 ### `deactivate.sh` — stop without deleting
 
 ```bash
@@ -1035,7 +1039,7 @@ Execution order:
 1. Run `docker compose down` in the project directory.
 2. Rename `nginxproxy/sites/<slug>.conf` to `<slug>.conf.disabled`. Otherwise, nginxproxy would fail to resolve the stopped project's `upstream` and fail to start for all sites.
 3. Comment out the project's network and SSL volume in `nginxproxy/docker-compose.yml`.
-4. Run `docker restart nginxproxy`.
+4. Run `docker compose up -d` in `/var/www/nginxproxy` to detach the disabled site's network and SSL volume, then `docker restart nginxproxy` and check `nginx -t`.
 
 Data (volumes and the project directory) is preserved.
 
@@ -1338,7 +1342,17 @@ MOOSHIP_HTTP_INTEGRATION=1 python3 -B -m unittest discover -s tests -p test_http
 
 Docker must be running, and `nginx:1.29.1-alpine`, `python:3.12-alpine`, `httpd:2.4-alpine`, `alpine/openssl:latest`, and `php:8.4-fpm` must already be available locally. `MOOSHIP_TEST_PHP_IMAGE` may select another PHP-FPM image, for example `php:8.4-fpm-alpine`. The suite also checks the Moodle router fallback, X-Sendfile, the client address seen by PHP, the HTTPS redirect, and that a stopped project does not stop the proxy.
 
-GitHub Actions runs these checks: `.github/workflows/ci.yml` on every push to `main` and every pull request (Bash syntax, ShellCheck, unit tests, and both Docker suites), and `.github/workflows/e2e.yml` weekly or on demand, deploying Moodle 4.5 and 5.3 with PostgreSQL and MySQL over HTTP on a disposable runner. Tests do not pull images, issue real certificates, or deploy Moodle; they use temporary self-signed certificates and remove their own containers, network, and files. Real Moodle installation, DNS, and Let's Encrypt issuance require separate target-server checks.
+Proxy lifecycle checks cover multiple sites, disabled entries, exact slug matching, repeat operations, and the last site's deactivation/reactivation. To validate the edited files with Docker Compose and verify actual proxy network/volume detachment while a neighboring site remains available:
+
+```bash
+MOOSHIP_PROXY_COMPOSE_TESTS=1 MOOSHIP_PROXY_INTEGRATION=1 python3 -B -m unittest discover -s tests -p test_proxy_lifecycle.py -v
+```
+
+The Docker lifecycle test requires the local `nginx:1.29.1-alpine` image. It uses uniquely named temporary networks, volumes, and a proxy container without publishing host ports, and removes these resources afterwards.
+
+Eight GitHub Actions workflows separate regression checks, configuration validation, component integration, security analysis, dependency review, documentation, and full deployment. The regression matrix covers Python 3.8/3.12/3.14 and Ubuntu 22.04/24.04; Python helper branch coverage must remain at least 90%. Dependabot checks Actions, Dockerfile/Compose images, and the pinned CI tools weekly. See [the CI guide](docs/CI.md) for every workflow, trigger, security exception, and local command.
+
+Generated Compose checks are opt-in with `MOOSHIP_COMPOSE_TESTS=1`; proxy configuration checks use `MOOSHIP_PROXY_COMPOSE_TESTS=1`. Full E2E deployments run weekly or manually on disposable runners. Component tests do not pull images, issue real certificates, or deploy Moodle; they use synthetic fixtures and remove their own Docker resources and files. Real Moodle installation, DNS, and Let's Encrypt issuance require separate target-server checks.
 
 ## Docker command reference
 

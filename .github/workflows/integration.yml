@@ -1,0 +1,54 @@
+name: Component integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  component:
+    name: ${{ matrix.component }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [postgres, mysql, http, proxy]
+    env:
+      MOOSHIP_DOCKER_TESTS: '1'
+      MOOSHIP_HTTP_INTEGRATION: '1'
+      MOOSHIP_PROXY_INTEGRATION: '1'
+      MOOSHIP_TEST_PHP_IMAGE: php:8.4-fpm-alpine
+      PYTHONPATH: tests
+      COMPONENT: ${{ matrix.component }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Pull this component's images
+        run: |
+          case "$COMPONENT" in
+            postgres) images=(postgres:17-alpine) ;;
+            mysql) images=(mysql:8.4) ;;
+            http) images=(nginx:1.29.1-alpine php:8.4-fpm-alpine python:3.12-alpine httpd:2.4-alpine alpine/openssl:latest) ;;
+            proxy) images=(nginx:1.29.1-alpine) ;;
+            *) exit 1 ;;
+          esac
+          for image in "${images[@]}"; do docker pull --quiet "$image"; done
+      - name: Run component checks
+        run: |
+          case "$COMPONENT" in
+            postgres) python3 -B -m unittest test_database_roundtrip.DatabaseRoundtripTests.test_postgres_dump_restores_data -v ;;
+            mysql) python3 -B -m unittest test_database_roundtrip.DatabaseRoundtripTests.test_mysql_dump_restores_data -v ;;
+            http) python3 -B -m unittest test_http_roundtrip -v ;;
+            proxy) python3 -B -m unittest test_proxy_lifecycle.ProxyDockerTests -v ;;
+            *) exit 1 ;;
+          esac

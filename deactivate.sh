@@ -10,7 +10,7 @@
 #   1. Stop project containers (docker compose down)
 #   2. Disable the site config: nginxproxy/sites/<slug>.conf → <slug>.conf.disabled
 #   3. Comment out slug entries in nginxproxy/docker-compose.yml
-#   4. Restart nginxproxy (docker restart nginxproxy)
+#   4. Apply proxy Compose changes and restart nginxproxy
 #
 # Options:
 #   --slug SLUG           Project slug (required)
@@ -95,126 +95,7 @@ comment_in_docker_compose() {
     
     info "Commenting out ${SLUG} entries in docker-compose.yml..."
     
-    python3 - "${COMPOSE_FILE}" "${SLUG}" <<'PYEOF'
-import sys
-import re
-
-def in_service(lines, idx, name):
-    """Line idx belongs to service name when the nearest preceding key with two-space indentation is name."""
-    for j in range(idx - 1, -1, -1):
-        m = re.match(r'^  ([\w.-]+):', lines[j])
-        if m:
-            return m.group(1) == name
-        if re.match(r'^[^\s#]', lines[j]):
-            return False
-    return False
-
-compose_file = sys.argv[1]
-slug = sys.argv[2]
-
-def is_slug_item(line):
-    """Match the exact list item ("- lms", "# - lms", "- lms_ssl_certificates:/...");
-    substring matching would also affect other projects (lms → lms2)."""
-    s = line.strip().lstrip('#').strip()
-    if s.startswith('-'):
-        s = s[1:].strip()
-    return s.split(':', 1)[0] in (slug, f"{slug}_ssl_certificates")
-
-with open(compose_file, 'r') as f:
-    content = f.read()
-
-lines = content.splitlines()
-result = []
-i = 0
-
-while i < len(lines):
-    line = lines[i]
-    
-    # Comment out the network in x-common-networks
-    if line.strip().startswith("networks:") and i > 0 and "x-common-networks" in lines[i-1]:
-        result.append(line)
-        i += 1
-        # Process the network list
-        while i < len(lines) and lines[i].strip().startswith("-"):
-            if is_slug_item(lines[i]):
-                # Comment out the matching slug line, preserving indentation
-                indent = len(lines[i]) - len(lines[i].lstrip())
-                result.append(" " * indent + "# " + lines[i].strip())
-            else:
-                result.append(lines[i])
-            i += 1
-        continue
-    
-    # Comment out the volume in the nginxproxy service
-    if re.match(r'^\s+volumes:\s*$', line) and in_service(lines, i, "nginxproxy"):
-        result.append(line)
-        i += 1
-        while i < len(lines) and lines[i].strip().startswith("-"):
-            if is_slug_item(lines[i]):
-                # Comment out the matching slug line, preserving indentation
-                indent = len(lines[i]) - len(lines[i].lstrip())
-                result.append(" " * indent + "# " + lines[i].strip())
-            else:
-                result.append(lines[i])
-            i += 1
-        continue
-    
-    # Comment out the top-level network
-    if re.match(r'^networks:\s*$', line):
-        result.append(line)
-        i += 1
-        while i < len(lines):
-            # Check whether a new top-level section has started
-            if lines[i] and not lines[i].startswith(' '):
-                break
-            # If this is the matching slug block
-            if lines[i].strip().startswith(f"{slug}:"):
-                # Comment out the block header, preserving indentation
-                indent = len(lines[i]) - len(lines[i].lstrip())
-                result.append(" " * indent + "# " + lines[i].strip())
-                i += 1
-                # Comment out all child elements
-                while i < len(lines) and lines[i].startswith('    '):
-                    indent = len(lines[i]) - len(lines[i].lstrip())
-                    result.append(" " * indent + "# " + lines[i].strip())
-                    i += 1
-            else:
-                result.append(lines[i])
-                i += 1
-        continue
-    
-    # Comment out the top-level volume
-    if re.match(r'^volumes:\s*$', line):
-        result.append(line)
-        i += 1
-        while i < len(lines):
-            # Check whether a new top-level section has started
-            if lines[i] and not lines[i].startswith(' '):
-                break
-            # If this is the matching slug block
-            if lines[i].strip().startswith(f"{slug}_ssl_certificates:"):
-                # Comment out the block header, preserving indentation
-                indent = len(lines[i]) - len(lines[i].lstrip())
-                result.append(" " * indent + "# " + lines[i].strip())
-                i += 1
-                # Comment out all child elements
-                while i < len(lines) and lines[i].startswith('    '):
-                    indent = len(lines[i]) - len(lines[i].lstrip())
-                    result.append(" " * indent + "# " + lines[i].strip())
-                    i += 1
-            else:
-                result.append(lines[i])
-                i += 1
-        continue
-    
-    result.append(line)
-    i += 1
-
-with open(compose_file, 'w') as f:
-    f.write("\n".join(result) + "\n")
-
-print(f"Entries for {slug} commented out in docker-compose.yml")
-PYEOF
+    python3 "$SCRIPT_DIR/lib/proxy.py" deactivate "${COMPOSE_FILE}" "${SLUG}"
 
     if [[ $? -eq 0 ]]; then
         info "docker-compose.yml updated successfully"
@@ -225,9 +106,11 @@ PYEOF
 
 # ==================== Restart nginxproxy ========
 restart_nginxproxy() {
-    info "Restarting nginxproxy..."
+    info "Applying nginxproxy/docker-compose.yml and restarting the proxy..."
     
-    if docker restart nginxproxy; then
+    # Recreate when necessary to detach the disabled site's network and volume.
+    if (cd "${PROXY_DIR}" && docker compose up -d) && docker restart nginxproxy; then
+        docker exec nginxproxy nginx -t || error "nginxproxy configuration check failed"
         info "nginxproxy restarted successfully"
     else
         error "Failed to restart nginxproxy"

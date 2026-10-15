@@ -1,0 +1,3 @@
+# subprocess is required to inspect and validate repository files. Each call uses
+# fixed executable names, argument lists, and shell=False; Bandit still checks B602.
+skips: [B404, B603, B607]
