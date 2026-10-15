@@ -36,4 +36,6 @@ After Moodle code/config generation, validate and reload nginx so a newly select
 
 The full E2E matrix installs Moodle 4.5/5.3 with PostgreSQL/MySQL and then checks native routing using its built PHP image. It also checks HTTP, Redis sessions, SMTP, cron, backup retention, systemd schedules and doctor. TLS issuance is outside the synthetic HTTP runner setup.
 
+The synthetic E2E domain is resolved both on the runner and inside PHP. A dedicated internal test network gives nginxproxy that DNS alias, allowing Moodle 5.3's router status check to call its own wwwroot. Production domains must resolve from their application containers. E2E checks successful router/API responses and a real 404 before the final doctor gate.
+
 The opt-in HTTP suite (`MOOSHIP_HTTP_INTEGRATION=1`) includes a real nginx reload regression: an application route under `public/` stays unavailable until the changed document root is loaded, then returns HTTP 200. Use the pre-pulled fixture images from the component integration workflow.

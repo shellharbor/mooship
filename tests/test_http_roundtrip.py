@@ -52,6 +52,7 @@ class HttpRoundtripTests(unittest.TestCase):
         self.slug = "mooship_http_" + uuid.uuid4().hex[:12]
         self.network = self.slug
         self.containers = []
+        self.extra_networks = []
         # Containers run as the invoking user so Linux bind mounts stay readable and writable.
         if hasattr(os, "getuid"):
             self.uid, self.gid = os.getuid(), os.getgid()
@@ -65,6 +66,8 @@ class HttpRoundtripTests(unittest.TestCase):
         for name in reversed(self.containers):
             subprocess.run(["docker", "rm", "--force", name], capture_output=True, timeout=30)
         subprocess.run(["docker", "network", "rm", self.network], capture_output=True, timeout=30)
+        for network in self.extra_networks:
+            subprocess.run(["docker", "network", "rm", network], capture_output=True, timeout=30)
 
     def mount(self, source, target):
         return ["--mount", "type=bind,source=" + str(source) + ",target=" + target + ",readonly"]
@@ -249,6 +252,17 @@ with response:
 
     def test_http_legacy_document_root(self):
         self.verify_site()
+
+    def test_php_self_requests_resolve_the_synthetic_site_through_the_proxy(self):
+        self.prepare()
+        network = self.slug + '_self_checks'
+        self.extra_networks.append(network)
+        self.docker('network', 'create', '--internal', '--label', 'org.mooship.test=http', network)
+        self.docker('network', 'connect', '--alias', 'self.mooship.test', network, self.proxy)
+        self.docker('network', 'connect', network, self.slug + '_php')
+        result = self.docker('exec', self.slug + '_php', 'php', '-r',
+                             'echo file_get_contents("http://self.mooship.test/course/index.php");')
+        self.assertEqual(result, 'COURSE')
 
     def test_public_root_change_is_applied_to_the_running_nginx(self):
         self.prepare(public=True, legacy_root_at_start=True)

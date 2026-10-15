@@ -35,6 +35,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- 2026-10-15: resolve the synthetic E2E site domain inside PHP through a dedicated internal Docker network alias, allowing Moodle 5.3 router self-checks to reach the shared proxy. Added explicit routed HTTP status checks and detailed router diagnostics without weakening doctor.
+
 - 2026-10-15: preserve the inode when selecting Moodle's public document root so the running nginx file bind mount sees the change before reload. Exercise the actual updater with a single-file mount and verify inode/protocol preservation; the second full E2E exposed the stale mount missed by a directory-mounted fixture.
 
 - 2026-10-15: full E2E exposed stale running nginx configuration after Moodle 5.1+ switches to the public/ document root. Validate/reload nginx after generating Moodle configuration, add a real HTTP regression, and wait for services resumed by backup before E2E doctor checks instead of treating transient starting health as a permanent failure.

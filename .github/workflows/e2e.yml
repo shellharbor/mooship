@@ -52,6 +52,26 @@ jobs:
           curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/login/index.php" -o login.html
           grep -q 'name="username"' login.html
 
+      - name: Resolve the synthetic site domain for Moodle self-checks
+        # The runner's /etc/hosts is not inherited by containers. Moodle 5.3's
+        # router check makes HTTP requests from PHP to the public wwwroot.
+        run: |
+          docker network create --internal mooship-e2e-self-checks
+          docker network connect --alias "$DOMAIN" mooship-e2e-self-checks nginxproxy
+          docker network connect mooship-e2e-self-checks "${SLUG}_php"
+          docker exec -e MOOSHIP_TEST_DOMAIN="$DOMAIN" "${SLUG}_php" php -r '
+            $host = getenv("MOOSHIP_TEST_DOMAIN");
+            exit(gethostbyname($host) === $host ? 1 : 0);
+          '
+
+      - name: Moodle router HTTP responses
+        if: matrix.moodle == '5.3'
+        run: |
+          curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/core/check/controller/test" -o /dev/null
+          curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/api/rest/v2/openapi.json" -o /dev/null
+          code=$(curl --silent --show-error --max-time 60 -o /dev/null -w '%{http_code}' "http://${DOMAIN}/not/a/valid/request")
+          test "$code" = 404
+
       # The project directory is private to root (mode 700)
       - name: Moodle configuration, sessions in Redis, and cron
         run: |
@@ -123,3 +143,14 @@ jobs:
           sudo bash -c 'cd /var/www/e2e && docker compose logs --tail 200' || true
           sudo docker logs --tail 100 nginxproxy || true
           docker logs --tail 50 mailpit || true
+          sudo docker exec e2e_php php /var/www/html/admin/cli/checks.php --type=status -v || true
+          sudo docker exec e2e_php php -r '
+            define("CLI_SCRIPT", true);
+            require("/var/www/html/config.php");
+            $check = new \core\check\environment\router();
+            if (method_exists($check, "get_results")) {
+              foreach ($check->get_results() as $result) {
+                echo $result->get_summary(), "\n", $result->get_details(), "\n";
+              }
+            }
+          ' || true
