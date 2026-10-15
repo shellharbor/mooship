@@ -220,6 +220,11 @@ with response:
         self.assertEqual(self.request("/course/", basic_auth)[:2], (200, "COURSE"))
         self.assertEqual(self.request("/virtual/route?id=7", basic_auth)[:2],
                          (200, "ROUTER:/virtual/route?id=7"))
+        # Retired PHP paths are router shims too, including their original query/path info.
+        self.assertEqual(self.request('/retired.php?id=7', basic_auth)[:2],
+                         (200, 'ROUTER:/retired.php?id=7'))
+        self.assertEqual(self.request('/retired.php/extra?id=7', basic_auth)[:2],
+                         (200, 'ROUTER:/retired.php/extra?id=7'))
         # $CFG->xsendfile: PHP hands the file to nginx through the internal /dataroot/ location.
         self.assertEqual(self.request("/sendfile.php", basic_auth)[:2], (200, "synthetic moodledata file"))
         # PHP sees the client address, not nginxproxy's, and clients cannot forge it.

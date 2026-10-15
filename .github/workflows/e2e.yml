@@ -68,9 +68,16 @@ jobs:
         if: matrix.moodle == '5.3'
         run: |
           curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/core/check/controller/test" -o /dev/null
-          curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/api/rest/v2/openapi.json" -o /dev/null
+          curl --fail-with-body --silent --show-error --max-time 60 "http://${DOMAIN}/api/rest/v2/openapi.json" -o openapi-response.json || {
+            cat openapi-response.json
+            exit 1
+          }
           code=$(curl --silent --show-error --max-time 60 -o /dev/null -w '%{http_code}' "http://${DOMAIN}/not/a/valid/request")
           test "$code" = 404
+          for path in /lib/exampleshimroute.php /lib/exampleshimroute2.php; do
+            code=$(curl --silent --show-error --max-time 60 -o /dev/null -w '%{http_code}' "http://${DOMAIN}${path}")
+            test "$code" = 302
+          done
 
       # The project directory is private to root (mode 700)
       - name: Moodle configuration, sessions in Redis, and cron
@@ -151,6 +158,14 @@ jobs:
             if (method_exists($check, "get_results")) {
               foreach ($check->get_results() as $result) {
                 echo $result->get_summary(), "\n", $result->get_details(), "\n";
+              }
+            }
+            if (class_exists(\core\router\apidocs::class)) {
+              try {
+                (new \core\router\apidocs())->openapi_docs(new \GuzzleHttp\Psr7\Response());
+              } catch (\Throwable $error) {
+                fwrite(STDERR, $error->getMessage() . "\n" . $error->getTraceAsString() . "\n");
+                exit(1);
               }
             }
           ' || true

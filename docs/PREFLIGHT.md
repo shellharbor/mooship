@@ -38,4 +38,6 @@ The full E2E matrix installs Moodle 4.5/5.3 with PostgreSQL/MySQL and then check
 
 The synthetic E2E domain is resolved both on the runner and inside PHP. A dedicated internal test network gives nginxproxy that DNS alias, allowing Moodle 5.3's router status check to call its own wwwroot. Production domains must resolve from their application containers. E2E checks successful router/API responses and a real 404 before the final doctor gate.
 
+The PHP nginx location also falls back to `r.php` for removed scripts, preserving the original request/query and saved FastCGI PATH_INFO for existing scripts. This covers Moodle's shim redirects; a missing router returns 404. See the [official router-aware nginx example](https://moodledev.io/docs/5.3/guides/restructure#developer-configuration-examples). E2E asserts both physical and virtual shim responses, and component tests exercise HTTP/HTTPS, Basic Auth, public/legacy roots and slash arguments.
+
 The opt-in HTTP suite (`MOOSHIP_HTTP_INTEGRATION=1`) includes a real nginx reload regression: an application route under `public/` stays unavailable until the changed document root is loaded, then returns HTTP 200. Use the pre-pulled fixture images from the component integration workflow.
