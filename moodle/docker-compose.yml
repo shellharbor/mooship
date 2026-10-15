@@ -99,7 +99,7 @@ services:
       - "{SLUG}"
   db_mysql:
     # 8.4 LTS: Moodle 5.x requires MySQL 8.4+, and Innovation releases (9.x) have short support
-    image: mysql:8.4
+    image: mysql:9.6
     container_name: "{SLUG}_db_mysql"
     restart: always
     logging: *default-logging
