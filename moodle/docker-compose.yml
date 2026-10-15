@@ -62,7 +62,7 @@ services:
     networks:
       - "{SLUG}"
   db_postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: "{SLUG}_db_postgres"
     restart: always
     logging: *default-logging
