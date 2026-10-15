@@ -24,9 +24,11 @@ New native archives retain their endpoint. Older archives without `DB_HOST` reta
 
 PHP-FPM uses a FastCGI ping; nginx serves `/mooship-healthz` without Moodle/Basic Auth; Redis uses authenticated `PING`. The installer waits for health instead of a fixed ten-second sleep. DB readiness is bounded separately. Each service gets 90 checks spaced two seconds apart, plus probe execution time. `MOOSHIP_READY_ATTEMPTS` adjusts the count; Docker health checks have five-second execution timeouts.
 
-Process health is independent of DB availability. PHP's DB probe establishes authentication before initialization. Installation checks distinguish an empty DB (exit 3), installed DB (0), partial installation (4), and connection/probe failure (1). Partial/unknown state never silently skips or retries installation. The fixed `mdl_` prefix matches the host installer.
+Process health is independent of DB availability. PHP's DB probe establishes authentication before initialization. Installation checks distinguish an empty DB (exit 3), a present `mdl_config.version` record (0), a populated DB without that record (4), and connection/probe failure (1). This classification is not a full schema audit. Partial/unknown state never silently skips or retries installation. The fixed `mdl_` prefix matches the host installer.
 
 Cron starts after successful installation/mail configuration, or after restoring data. Older archives without health metadata use live FPM socket and nginx configuration checks. New templates include health checks; Compose parsing alone does not prove readiness.
+
+After Moodle code/config generation, validate and reload nginx so a newly selected `public/` document root is active before publishing the site. Full E2E also waits for health after backup resumes services, before running doctor. Its one-off cron check uses `--keep-alive=0` to execute tasks without the administrator-configured idle polling period.
 
 ## Tests
 

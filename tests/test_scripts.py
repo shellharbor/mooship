@@ -218,7 +218,7 @@ echo SHOULD_NOT_RUN
     def test_failed_application_does_not_publish_proxy_configuration(self):
         # Exercise main's ordering with side effects replaced by trace markers.
         result = self.bash('''
-for function in check_root parse_args mooship_require_new_project assign_ports resolve_moodle_version select_php_version_for_moodle select_resource_profile install_docker mooship_require_docker mooship_require_unused_resources ensure_www_dir init_nginxproxy ensure_logrotate create_dhparam create_project comment_ssl_blocks create_native_database build_and_start_project install_moodle configure_moodle_config mooship_check_database; do
+for function in check_root parse_args mooship_require_new_project assign_ports resolve_moodle_version select_php_version_for_moodle select_resource_profile install_docker mooship_require_docker mooship_require_unused_resources ensure_www_dir init_nginxproxy ensure_logrotate create_dhparam create_project comment_ssl_blocks create_native_database build_and_start_project install_moodle configure_moodle_config mooship_check_database reload_project_nginx; do
   eval "$function() { :; }"
 done
 install_moodle_database() { return 42; }

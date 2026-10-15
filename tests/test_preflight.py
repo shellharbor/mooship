@@ -147,3 +147,19 @@ install_moodle_database
 """)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("INSTALLER_CALLED", result.stdout)
+
+    def test_nginx_configuration_is_checked_before_reload(self):
+        self.project.mkdir()
+        result = self.bash('''PROJECT_DIR="$WWW_DIR/test"
+docker() { printf '%s\\n' "$*" >> "$TEST_DIR/reload.log"; }
+reload_project_nginx
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.directory / 'reload.log').read_text().splitlines(),
+                         ['compose exec -T nginx nginx -t', 'compose exec -T nginx nginx -s reload'])
+        result = self.bash('''PROJECT_DIR="$WWW_DIR/test"
+docker() { [[ "$*" != *'nginx -t' ]] && echo RELOADED; return 42; }
+reload_project_nginx
+''')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('RELOADED', result.stdout)

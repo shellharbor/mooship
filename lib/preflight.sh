@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deployment preflight and bounded readiness checks. No resources are changed here.
+# Deployment preflight, bounded readiness checks, and ordered service startup.
 
 mooship_port_available() {
     local port="$1"
@@ -75,4 +75,9 @@ mooship_check_database() {
 start_moodle_cron() {
     (cd "$PROJECT_DIR" && docker compose up -d cron &&
         mooship_wait_service cron) || error "Moodle cron did not start"
+}
+
+reload_project_nginx() {
+    (cd "$PROJECT_DIR" && docker compose exec -T nginx nginx -t &&
+        docker compose exec -T nginx nginx -s reload) || error "Could not apply the project's nginx configuration"
 }

@@ -2032,6 +2032,7 @@ main() {
     (cd "$PROJECT_DIR" && mooship_check_database connect) || error "PHP cannot authenticate to the selected database"
     install_moodle
     configure_moodle_config
+    reload_project_nginx
     install_moodle_database
     configure_moodle_mail
     start_moodle_cron

@@ -64,7 +64,7 @@ jobs:
             password=$(grep "^REDIS_PASSWORD=" .env | cut -d= -f2-)
             docker compose exec -T -e REDISCLI_AUTH="$password" redis \
               redis-cli --scan --pattern "mdl_session_*" | grep -q .
-            docker compose exec -T php php /var/www/html/admin/cli/cron.php > /dev/null
+            docker compose exec -T php php /var/www/html/admin/cli/cron.php --keep-alive=0 > /dev/null
           '
 
       - name: Native DB routing and installation-state checks
@@ -101,6 +101,15 @@ jobs:
           test ! -e "/etc/systemd/system/mooship-backup-${SLUG}.timer"
 
       # Warnings are expected on a test runner (no certificate, Moodle notices); failures are not
+      - name: Wait for services resumed after backups
+        run: |
+          sudo bash -euo pipefail -c '
+            source ./deploy-moodle.sh
+            SLUG=e2e; PROJECT_DIR=/var/www/e2e
+            cd "$PROJECT_DIR"
+            for service in php nginx redis cron certbot_renew; do mooship_wait_service "$service"; done
+          '
+
       - name: Doctor
         run: |
           status=0

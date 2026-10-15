@@ -6,6 +6,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### AI-KIT
 
+- 2026-10-15: synchronized preflight implementation pointers and verification boundaries in the public skill/context/wiki and local continuity profile while preserving the separate uncommitted image work.
+
 - 2026-10-15: synchronized public context/wiki availability and clean-checkout documentation validation in the project skill, local registry, and continuity profile; optional AI-KIT paths are described without requiring unpublished resources.
 - 2026-10-15: recorded the tested database branch/migration contract in the public skill and synchronized the reproduced CI failure, successful Compose/database/regression checks, and remaining deployment limits in local context.
 - 2026-10-15: added a portable local `SKILL.md` for Mooship development and operations, replaced stale Claude instructions with an adapter to the same guide, and synchronized discovery, documentation, and context. Preserved ignore rules and avoided global installation.
@@ -32,6 +34,8 @@ After every task with file changes, briefly record what changed and why: feature
 - 2026-10-04: extended the English language requirement to all authored project content and agent communication, including code, UI text, logs, Git messages, reviews, and reports, so future project work follows one language policy.
 
 ### Project
+
+- 2026-10-15: full E2E exposed stale running nginx configuration after Moodle 5.1+ switches to the public/ document root. Validate/reload nginx after generating Moodle configuration, add a real HTTP regression, and wait for services resumed by backup before E2E doctor checks instead of treating transient starting health as a permanent failure.
 
 - 2026-10-15: validate all explicit deployment ports before side effects, reject duplicates/occupied ports and shared proxy reservations, and exclude selected ports from automatic allocation. Added configurable native DB routing with host-gateway mapping and real PHP-side connectivity/authentication checks. Replaced fixed startup sleep with bounded PHP/nginx/Redis health checks, deferred cron until installation, and replaced installer-help parsing with structured DB state checks. Added regressions and disposable host-gateway DB checks to full E2E; preserve native endpoints in restored archives.
 
