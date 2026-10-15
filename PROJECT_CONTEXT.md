@@ -28,6 +28,8 @@ Last verified: 2026-10-15. Sources: the user's instructions, local Git metadata,
 
 ## Working with the project
 
+- Preflight verification (2026-10-15): local Linux regressions and real PostgreSQL 17/MySQL 8.4 host-gateway PHP probes passed; ShellCheck, Ruff, YAML, actionlint, zizmor, docs and raw Compose parsing passed. Implementation is isolated on `codex/deployment-preflight-readiness` in draft PR #6, preserving the prior uncommitted image work in the primary checkout. E2E run 38771200195 tests initial implementation commit 9638a53; result and follow-up compatibility checks are recorded after completion. Dependency Review separately reports that the repository's Dependency Graph is disabled.
+
 - Deployment preflight (2026-10-15): `lib/preflight.sh` validates explicit port syntax, selected-port uniqueness/reservations and availability (TCP bind plus Docker publications). Native listeners are exempt from free-port checks. Native `--db-host` defaults to `host.docker.internal` with PHP/cron host-gateway mappings, persists `DB_HOST`, and does not change DB/firewall configuration. PHP checks TCP reachability before native CREATE and authenticates before installation. PHP/nginx/Redis health is bounded; cron starts after installation/restore. `lib/check-database.php` replaces help-text matching with empty/installed/partial/error statuses. Old native archives retain their original address without DB_HOST. See `docs/PREFLIGHT.md`; execution results are recorded separately.
 
 - Installation: `sudo bash deploy-moodle.sh --slug lms --domain lms.example.com --db-type postgres --ssl-email admin@example.com`; see `README.md` for the full guide.

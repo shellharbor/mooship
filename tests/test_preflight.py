@@ -128,6 +128,17 @@ mooship_wait_service nginx
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn("INSTALLER_CALLED", result.stdout)
 
+    def test_legacy_redis_readiness_checks_authenticated_ping(self):
+        result = self.bash('''PROJECT_DIR="$WWW_DIR/test"; MOOSHIP_READY_ATTEMPTS=2
+mooship_read_env() { printf Synthetic_Redis; }
+docker() {
+  if [[ "$1" == inspect ]]; then echo 'running none';
+  else [[ "$REDISCLI_AUTH" == Synthetic_Redis ]] && echo PONG; fi
+}
+mooship_wait_service redis
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_installed_database_skips_the_installer(self):
         self.fixture()
         result = self.bash("""PROJECT_DIR="$WWW_DIR/test"

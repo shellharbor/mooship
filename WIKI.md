@@ -24,6 +24,7 @@ These local resources are not distributed with the repository. Use them when pro
 ## Decisions and history
 
 - [Published architecture decisions](docs/adr/)
+- [Deployment preflight and readiness decision](docs/adr/0005-deployment-preflight.md)
 - [Changelog](CHANGELOG.md)
 
 ## Mooship

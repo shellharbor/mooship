@@ -40,6 +40,9 @@ mooship_wait_service() {
             case "$service" in
                 php) docker compose exec -T php php -r '$s = @fsockopen("127.0.0.1", 9000, $n, $e, 2); exit($s ? 0 : 1);' && return 0 ;;
                 nginx) docker compose exec -T nginx nginx -t >/dev/null 2>&1 && return 0 ;;
+                redis)
+                    REDISCLI_AUTH="$(mooship_read_env "$PROJECT_DIR/.env" REDIS_PASSWORD)" \
+                        docker compose exec -T -e REDISCLI_AUTH redis redis-cli ping | grep -qx PONG && return 0 ;;
                 cron|certbot_renew) return 0 ;;
             esac
         fi
