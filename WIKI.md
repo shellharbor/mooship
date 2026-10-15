@@ -30,7 +30,7 @@ Project knowledge map. Keep current facts in [PROJECT_CONTEXT.md](PROJECT_CONTEX
 ## Mooship
 
 - [README, live workflow/release badges, and operations guide](README.md)
-- [Portable Mooship AI skill](SKILL.md) and [local Claude Code adapter](.claude/skills/deploy-moodle/SKILL.md)
+- [Public Mooship AI skill](SKILL.md) and [local Claude Code adapter](.claude/skills/deploy-moodle/SKILL.md)
 - [Installation](deploy-moodle.sh)
 - [Backup](backup.sh), [backup schedule](schedule-backup.sh), and [restore](restore.sh)
 - [Health check (doctor)](doctor.sh) and its [tests with profiles, mail, and retention](tests/test_operations.py)
@@ -43,7 +43,7 @@ Project knowledge map. Keep current facts in [PROJECT_CONTEXT.md](PROJECT_CONTEX
 - [Proxy upstream resolution and client address decision](docs/adr/0003-proxy-resolution-and-client-addresses.md)
 - [Proxy site template](nginxproxy/site-template.conf) and [project nginx template](moodle/.config/nginx/_site.conf)
 - [CI workflow](.github/workflows/ci.yml) and [end-to-end deployment workflow](.github/workflows/e2e.yml)
-- [CI and security guide](docs/CI.md), [component integration](.github/workflows/integration.yml), and [configuration checks](.github/workflows/configuration.yml)
+- [CI, security, and database branch policy](docs/CI.md), [component integration](.github/workflows/integration.yml), and [configuration checks](.github/workflows/configuration.yml)
 - [Security scans](.github/workflows/security.yml), [CodeQL](.github/workflows/codeql.yml), [dependency review](.github/workflows/dependency-review.yml), and [Dependabot](.github/dependabot.yml)
 - [Documentation workflow](.github/workflows/docs.yml) and [its behavioral tests](tests/test_ci_checks.py)
 - [License (MIT)](LICENSE)

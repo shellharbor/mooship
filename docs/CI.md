@@ -25,6 +25,8 @@ The regression matrix uses Python 3.8, 3.12, and 3.14 on Ubuntu 24.04, plus Pyth
 
 [Dependabot](../.github/dependabot.yml) checks GitHub Actions, [Python CI tools](../.github/requirements.txt), Dockerfiles, and the Moodle Compose template weekly. Version updates use a seven-day cooldown; GitHub security updates are not delayed by this cooldown. PHP major/minor image changes require a coordinated update to version selection and matching Dockerfile/ini templates, so Dependabot only proposes PHP patch updates. Pull requests are reviewed and tested; automatic merging is not configured.
 
+Database images stay on the tested MySQL 8.4 LTS and PostgreSQL 17 branches. Dependabot ignores MySQL major/minor updates and PostgreSQL major updates; updates within these branches remain eligible. Changing branches requires coordinated template, data-volume, backup/restore, and integration-test validation. In particular, [PostgreSQL 18 changes its default data directory and volume layout](https://github.com/docker-library/postgres/blob/master/18/trixie/Dockerfile), so changing only the image tag is insufficient. Generated Compose checks verify both database images and PostgreSQL's data mount.
+
 The runtime uses Python's standard library. CI packages are installed separately from `.github/requirements.txt`. Inline image names in Bash scripts, CI scanner image tags, and downloaded Moodle core releases require manual maintenance.
 
 CodeQL analyzes Python and workflow code. Bash is checked by ShellCheck and behavioral tests. Only CodeQL jobs request `security-events: write`; PR dependency review does not post comments. The public repository supports these GitHub features; local validation cannot confirm their server-side configuration or successful runs.

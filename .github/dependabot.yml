@@ -49,6 +49,12 @@ updates:
 
   - package-ecosystem: docker-compose
     directory: /moodle
+    # Database branch changes require coordinated migration and restore checks.
+    ignore:
+      - dependency-name: mysql
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
     cooldown:
       default-days: 7
     schedule:

@@ -17,7 +17,7 @@ Automated Moodle deployment on Ubuntu. Chosen GitHub repository: [shellharbor/mo
 
 The PHP version is selected automatically based on the Moodle version. Passwords, database names, and available ports are generated unless supplied explicitly.
 
-The `mooship/` folder is self-contained. It includes the deployment script, project and proxy templates, management utilities, and examples. Optional local AI instructions are described below. Copy the entire folder to a server or place it in a separate Git repository; it does not require files from outside the folder.
+The `mooship/` folder is self-contained. It includes the deployment script, project and proxy templates, management utilities, examples, and an [AI assistant skill](SKILL.md). Copy the entire folder to a server or place it in a separate Git repository; it does not require files from outside the folder.
 
 ---
 
@@ -78,7 +78,7 @@ mooship/
 ├── LICENSE                        # MIT
 ├── .github/workflows/             # CI checks and the weekly end-to-end deployment
 ├── .gitignore
-├── SKILL.md                       # optional local guide for AI assistants
+├── SKILL.md                       # portable project guide for AI assistants
 └── .claude/skills/deploy-moodle/SKILL.md   # optional local Claude Code adapter
 ```
 
@@ -1327,7 +1327,7 @@ Current projects pass the client address to PHP (see [How it works](#how-it-work
   - Explicitly supplied ports are not checked for availability. Automatic checks use currently listening sockets only, so a stopped project's ports may be assigned to a new project.
   - Redis and database ports are published only on `127.0.0.1` (see [Security](#security)).
 - **Redis** stores sessions; Moodle's application cache (MUC) is not configured automatically (see [Optional additions](#optional-additions-to-configphp)).
-- **Database images are fixed:** `postgres:17-alpine` and `mysql:8.4` (Moodle 5.3 requires PostgreSQL 17+ or MySQL 8.4+). Projects created with `mysql:9.1` keep it: MySQL does not support downgrading a data directory. Compatibility with older Moodle versions (3.9–4.0) is not guaranteed.
+- **Database images are fixed:** `postgres:17-alpine` and `mysql:8.4` (Moodle 5.3 requires PostgreSQL 17+ or MySQL 8.4+). Dependabot keeps these tested branches; major database changes require migration and backup/restore validation. Existing projects retain their saved image configuration: never attach a MySQL 9.x or PostgreSQL 18 data directory to an older database image. Template changes apply to new projects. Compatibility with older Moodle versions (3.9–4.0) is not guaranteed.
 - **Language:** installation uses `en` only; install language packs afterwards.
 - **Backups pause the site** for the snapshot, including scheduled ones.
 - **Backups** require space for a temporary project copy and the archive; restoration supports trusted Mooship v1 archives created by the project.
@@ -1519,9 +1519,9 @@ The scripts do not overwrite existing `/var/www/nginxproxy` or project directori
 
 ## AI assistant skill
 
-When available locally, the root `SKILL.md` guides AI assistants through Mooship development, review, deployment, lifecycle operations, backup/restore, and validation. Supply it together with the checkout to another AI, or ask the assistant to read it before working. Automatic discovery depends on the assistant's integration.
+The versioned [SKILL.md](SKILL.md) guides AI assistants through Mooship development, review, deployment, lifecycle operations, backup/restore, and validation. Read it directly on GitHub or ask an assistant to read it from the checkout before working. It does not require local AI-KIT files. Automatic discovery depends on the assistant's integration.
 
-The optional Claude Code adapter at `.claude/skills/deploy-moodle/SKILL.md` loads the same instructions through the `deploy-moodle` skill. These AI files are excluded by `.gitignore` and are not included in a normal clone; share them separately when needed. They are not required to run Mooship.
+The optional local Claude Code adapter at `.claude/skills/deploy-moodle/SKILL.md` loads the same instructions through the `deploy-moodle` skill. This adapter remains excluded by `.gitignore` and must be shared separately when needed; the root skill is included in the repository. AI instructions are not required to run Mooship.
 
 ## Development checks
 

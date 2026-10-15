@@ -359,6 +359,9 @@ docker compose --project-directory "$PROJECT_DIR" -f "$PROJECT_DIR/docker-compos
                         self.assertEqual(services["db"]["image"], "mysql:8.4")
                         self.assertIn("--innodb-buffer-pool-size=768M", services["db"]["command"])
                     if engine == "postgres" and native == "false":
+                        self.assertEqual(services["db"]["image"], "postgres:17-alpine")
+                        self.assertIn("/var/lib/postgresql/data",
+                                      [volume["target"] for volume in services["db"]["volumes"]])
                         self.assertIn("shared_buffers=512MB", services["db"]["command"])
                     self.assertEqual(services["php"]["environment"]["PHP_FPM_MAX_CHILDREN"], "16")
                     self.assertIn("redis", services["php"]["depends_on"])
