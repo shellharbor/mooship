@@ -17,6 +17,8 @@ Automated Moodle deployment on Ubuntu. Chosen GitHub repository: [shellharbor/mo
 
 The PHP version is selected automatically based on the Moodle version. Passwords, database names, and available ports are generated unless supplied explicitly.
 
+Deployment validates ports and service readiness before publishing a site. For native databases, `--db-host HOST` selects the container-reachable address (default `host.docker.internal` with Linux host-gateway mapping). See [preflight, native database access, and readiness](docs/PREFLIGHT.md) for requirements and checks.
+
 The `mooship/` folder is self-contained. It includes the deployment script, project and proxy templates, management utilities, examples, and an [AI assistant skill](SKILL.md). Copy the entire folder to a server or place it in a separate Git repository; it does not require files from outside the folder.
 
 ---

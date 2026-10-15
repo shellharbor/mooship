@@ -14,6 +14,12 @@ services:
     restart: always
     logging: *default-logging
     # Moodle stores sessions in Redis (config.php)
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/mooship-fpm-ping SCRIPT_FILENAME=/mooship-fpm-ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q '^pong'"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
     depends_on:
       - redis
     environment:
@@ -44,6 +50,12 @@ services:
     restart: always
     logging: *default-logging
     working_dir: /var/www/html
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/mooship-healthz | grep -qx ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
     depends_on:
       - php
       - db
@@ -167,6 +179,14 @@ services:
     container_name: "{SLUG}_redis"
     restart: always
     logging: *default-logging
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
     command:
       - redis-server
       - --requirepass

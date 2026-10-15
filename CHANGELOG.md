@@ -33,6 +33,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- 2026-10-15: validate all explicit deployment ports before side effects, reject duplicates/occupied ports and shared proxy reservations, and exclude selected ports from automatic allocation. Added configurable native DB routing with host-gateway mapping and real PHP-side connectivity/authentication checks. Replaced fixed startup sleep with bounded PHP/nginx/Redis health checks, deferred cron until installation, and replaced installer-help parsing with structured DB state checks. Added regressions and disposable host-gateway DB checks to full E2E; preserve native endpoints in restored archives.
+
 - 2026-10-15: fixed published context/wiki links to unavailable local AI-KIT resources. Documentation validation now checks targets against the Git file inventory, preventing local ignored files from masking broken links; added regressions for ignored files/directories, pending public files, tracked ignored documents, and command failure.
 - 2026-10-15: restored MySQL 8.4 LTS and PostgreSQL 17 in the new-project template after Dependabot branch upgrades broke the Compose contract. Restricted automated database branch changes and added PostgreSQL image/data-mount assertions; documented that existing deployments need a separate migration rather than an image downgrade.
 - 2026-10-15: explicitly allowed the root `SKILL.md` in `.gitignore` and linked it from README so other AI assistants can read the project guide on GitHub or in a clone. Corrected skill availability instructions while keeping nested agent skills and local AI-KIT files ignored.

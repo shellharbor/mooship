@@ -26,6 +26,7 @@ Resolve paths below against the Mooship repository root, even if this skill is l
 | Backup operations | `backup.sh`, `restore.sh`, `schedule-backup.sh`; archive contract in `docs/BACKUP.md` |
 | Diagnostics | `doctor.sh`: read-only health checks; exit codes 0 OK, 1 WARNING, 2 CRITICAL |
 | Shared shell contracts | `lib/common.sh`: paths, identifiers, database ownership/readiness, schedules |
+| Deployment preflight | `lib/preflight.sh`, `lib/check-database.php`, `docs/PREFLIGHT.md`: ports, native routing, PHP DB probes, bounded readiness |
 | State and archives | `lib/state.py`: environment parsing, manifests, checksums, safe extraction |
 | HTTP configuration | `lib/web.py`, `moodle/.config/nginx/_site.conf`, `nginxproxy/site-template.conf` |
 | Proxy lifecycle edits | `lib/proxy.py`, exercised by `tests/test_proxy_lifecycle.py` |

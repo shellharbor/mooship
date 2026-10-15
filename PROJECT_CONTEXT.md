@@ -28,6 +28,8 @@ Last verified: 2026-10-15. Sources: the user's instructions, local Git metadata,
 
 ## Working with the project
 
+- Deployment preflight (2026-10-15): `lib/preflight.sh` validates explicit port syntax, selected-port uniqueness/reservations and availability (TCP bind plus Docker publications). Native listeners are exempt from free-port checks. Native `--db-host` defaults to `host.docker.internal` with PHP/cron host-gateway mappings, persists `DB_HOST`, and does not change DB/firewall configuration. PHP checks TCP reachability before native CREATE and authenticates before installation. PHP/nginx/Redis health is bounded; cron starts after installation/restore. `lib/check-database.php` replaces help-text matching with empty/installed/partial/error statuses. Old native archives retain their original address without DB_HOST. See `docs/PREFLIGHT.md`; execution results are recorded separately.
+
 - Installation: `sudo bash deploy-moodle.sh --slug lms --domain lms.example.com --db-type postgres --ssl-email admin@example.com`; see `README.md` for the full guide.
 - Deployment requires Docker. Check daemon availability before container-based validation; daemon status is a temporary fact.
 - Checks: `bash -n` for `.sh` files, `python3 -B -m unittest discover -s tests -v`, ShellCheck, and `docker compose config` for generated variants. Report the results for each task.

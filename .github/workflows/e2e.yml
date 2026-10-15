@@ -42,9 +42,10 @@ jobs:
 
       - name: Deploy
         run: >
+          gateway=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}') &&
           sudo bash deploy-moodle.sh --slug "$SLUG" --domain "$DOMAIN" --no-ssl
           --db-type "${{ matrix.db }}" --moodle-version "${{ matrix.moodle }}" --profile small
-          --smtp-host 172.17.0.1:1025 --smtp-secure none --noreply-email "noreply@${DOMAIN}"
+          --smtp-host "${gateway}:1025" --smtp-secure none --noreply-email "noreply@${DOMAIN}"
 
       - name: Login page through nginxproxy
         run: |
@@ -65,6 +66,18 @@ jobs:
               redis-cli --scan --pattern "mdl_session_*" | grep -q .
             docker compose exec -T php php /var/www/html/admin/cli/cron.php > /dev/null
           '
+
+      - name: Native DB routing and installation-state checks
+        # Native host routing uses disposable DB containers, never the runner's own databases.
+        # The normal deployment above has already exercised the container-DB path.
+        env:
+          MOOSHIP_NATIVE_PREFLIGHT_TESTS: '1'
+          MOOSHIP_PREFLIGHT_DB: ${{ matrix.db }}
+          PYTHONPATH: tests
+        run: |
+          export MOOSHIP_PREFLIGHT_PHP_IMAGE
+          MOOSHIP_PREFLIGHT_PHP_IMAGE=$(sudo docker inspect --format '{{.Image}}' e2e_php)
+          python3 -B -m unittest test_native_preflight -v
 
       - name: Mail delivery through SMTP
         run: |
