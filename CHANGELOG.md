@@ -6,6 +6,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### AI-KIT
 
+- 2026-10-15: added a portable local `SKILL.md` for Mooship development and operations, replaced stale Claude instructions with an adapter to the same guide, and synchronized discovery, documentation, and context. Preserved ignore rules and avoided global installation.
+- 2026-10-15: refreshed the Git baseline, published-release metadata, and verified GitHub workflow results in local project context and the continuity profile.
 - 2026-10-14: synchronized the expanded CI/Dependabot map, verification results, Python coverage scope, scanner exceptions, and GitHub-only validation limits in context and the continuity profile.
 - 2026-10-14: synchronized the verified Git baseline, proxy lifecycle fix, current regression/component results, and remaining validation limits in the project context, wiki, and continuity profile.
 - 2026-10-06: independently reviewed the two uncommitted Mooship sprints against the external findings. Corrected the distinction between 73 discovered tests and 66 executed tests, recorded the independently passing regression/HTTP/Compose checks, and synchronized the remaining proxy lifecycle defects and hardening limits in the context and continuity profile.
@@ -29,6 +31,7 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- 2026-10-15: added live main-branch CI, CodeQL, security, integration, configuration, and documentation badges below the README banner, together with latest-release and MIT license badges, so readers can inspect the project's checks and release metadata.
 - 2026-10-14: expanded from two to eight workflows: Python 3.8/3.12/3.14 and Ubuntu compatibility, Ruff/YAML/actionlint/zizmor, 90% Python helper branch-coverage gate and report artifacts, separate database/HTTP/proxy integration jobs, Compose/Dockerfile validation, Bandit/Gitleaks, Python/Actions CodeQL, dependency review, and documentation checks. Kept full Moodle E2E scheduled/manual; pinned Actions to verified commits and limited job permissions/timeouts.
 - 2026-10-14: added weekly Dependabot updates for Actions, CI Python tools, Dockerfiles, and Compose images, with cooldowns and coordinated PHP minor-version upgrades. Quoted Compose slug placeholders so dependency tooling can parse the raw template; preserved database filtering for quoted/unquoted volume keys and added regressions. Secret scanning excludes only local artifacts and exact synthetic database fixture passwords, checks repository access, and scans all Git refs.
 - 2026-10-14: fixed stale proxy network and certificate-volume entries during site deactivation/removal. Activation, deactivation, and removal share a scoped editor that handles comments and blank lines, preserves neighboring sites, removes disabled declarations, and keeps empty collections valid. Deactivation now applies Compose changes to detach the site's resources before restarting the proxy.

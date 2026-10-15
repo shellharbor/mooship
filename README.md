@@ -2,13 +2,22 @@
 
 ![Mooship Moodle deployment](https://i.postimg.cc/R0dVWzn3/mooship-hero-terminal.jpg)
 
+[![CI](https://github.com/shellharbor/mooship/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shellharbor/mooship/actions/workflows/ci.yml?query=branch%3Amain)
+[![CodeQL](https://github.com/shellharbor/mooship/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/shellharbor/mooship/actions/workflows/codeql.yml?query=branch%3Amain)
+[![Security](https://github.com/shellharbor/mooship/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/shellharbor/mooship/actions/workflows/security.yml?query=branch%3Amain)
+[![Integration](https://github.com/shellharbor/mooship/actions/workflows/integration.yml/badge.svg?branch=main)](https://github.com/shellharbor/mooship/actions/workflows/integration.yml?query=branch%3Amain)
+[![Configuration](https://github.com/shellharbor/mooship/actions/workflows/configuration.yml/badge.svg?branch=main)](https://github.com/shellharbor/mooship/actions/workflows/configuration.yml?query=branch%3Amain)
+[![Documentation](https://github.com/shellharbor/mooship/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/shellharbor/mooship/actions/workflows/docs.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/shellharbor/mooship)](https://github.com/shellharbor/mooship/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/shellharbor/mooship)](LICENSE)
+
 Automated Moodle deployment on Ubuntu. Chosen GitHub repository: [shellharbor/mooship](https://github.com/shellharbor/mooship).
 
 `deploy-moodle.sh` deploys Moodle on an Ubuntu server with a single command. It creates an isolated Docker project (PHP-FPM, nginx, PostgreSQL or MySQL, Redis, cron, certbot), installs Moodle through the CLI, connects the site to the shared `nginxproxy` reverse proxy, and obtains a Let's Encrypt certificate. Companion scripts schedule full backups and check the health of every site.
 
 The PHP version is selected automatically based on the Moodle version. Passwords, database names, and available ports are generated unless supplied explicitly.
 
-The `mooship/` folder is self-contained. It includes the deployment script, project and proxy templates, management utilities, examples, and a Claude Code skill. Copy the entire folder to a server or place it in a separate Git repository; it does not require files from outside the folder.
+The `mooship/` folder is self-contained. It includes the deployment script, project and proxy templates, management utilities, and examples. Optional local AI instructions are described below. Copy the entire folder to a server or place it in a separate Git repository; it does not require files from outside the folder.
 
 ---
 
@@ -38,7 +47,7 @@ The `mooship/` folder is self-contained. It includes the deployment script, proj
 - [Migrating from the old deploy.sh](#migrating-from-the-old-deploysh)
   - [What was fixed](#what-was-fixed)
   - [Updating an existing server](#updating-an-existing-server)
-- [Claude Code skill](#claude-code-skill)
+- [AI assistant skill](#ai-assistant-skill)
 
 ---
 
@@ -69,7 +78,8 @@ mooship/
 ├── LICENSE                        # MIT
 ├── .github/workflows/             # CI checks and the weekly end-to-end deployment
 ├── .gitignore
-└── .claude/skills/deploy-moodle/SKILL.md   # Claude Code skill
+├── SKILL.md                       # optional local guide for AI assistants
+└── .claude/skills/deploy-moodle/SKILL.md   # optional local Claude Code adapter
 ```
 
 - **The utilities are independent of the project type.** `activate.sh`, `deactivate.sh`, `remove.sh`, and `list-projects.sh` work with any project in `/var/www` deployed by these scripts, including projects other than Moodle.
@@ -1507,9 +1517,11 @@ The scripts do not overwrite existing `/var/www/nginxproxy` or project directori
 
 ---
 
-## Claude Code skill
+## AI assistant skill
 
-The folder includes `.claude/skills/deploy-moodle/SKILL.md`. Claude Code discovers the skill when working in this directory. Ask, for example, "Deploy Moodle 5 on lms.example.com with MySQL." Claude collects parameters, runs preflight checks, shows the final command, and executes it on the server only after confirmation.
+When available locally, the root `SKILL.md` guides AI assistants through Mooship development, review, deployment, lifecycle operations, backup/restore, and validation. Supply it together with the checkout to another AI, or ask the assistant to read it before working. Automatic discovery depends on the assistant's integration.
+
+The optional Claude Code adapter at `.claude/skills/deploy-moodle/SKILL.md` loads the same instructions through the `deploy-moodle` skill. These AI files are excluded by `.gitignore` and are not included in a normal clone; share them separately when needed. They are not required to run Mooship.
 
 ## Development checks
 
