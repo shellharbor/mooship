@@ -145,7 +145,7 @@ find_free_port() {
 
     while [[ $ATTEMPTS -lt $MAX_ATTEMPTS ]]; do
         local PORT=$(( RANDOM % RANGE + MIN ))
-        # Use ss to check that the port is available
+        # Exclude selected ports, occupied TCP sockets, and Docker publications.
         if [[ "$PORT" != 80 && "$PORT" != 443 ]] && mooship_port_available "$PORT"; then
             echo "$PORT"
             return 0
@@ -1487,7 +1487,8 @@ install_moodle() {
     # Moodle 5.1+: web files moved to public/ (config.php, lib/, and admin/cli remain at the root)
     if [[ -f "${PROJECT_DIR}/public_html/public/version.php" ]]; then
         info "Moodle 5.1+: nginx document root → /var/www/html/public"
-        sed -i 's|^\(#\?\s*\)root /var/www/html;|\1root /var/www/html/public;|' "${PROJECT_DIR}/.config/nginx/_site.conf"
+        python3 "$SCRIPT_DIR/lib/web.py" --public-root "${PROJECT_DIR}/.config/nginx/_site.conf" ||
+            error "Could not select the Moodle public document root"
     fi
 
     success "Moodle ${MOODLE_VERSION} installed successfully!"

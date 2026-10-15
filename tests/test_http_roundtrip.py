@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -154,7 +155,8 @@ class HttpRoundtripTests(unittest.TestCase):
                    ["php-fpm", "--fpm-config", "/fixtures/php-fpm.conf", "--nodaemonize"], common)
         self.start(self.slug + "_nginx", "nginx:1.29.1-alpine",
                    ["nginx", "-g", "daemon off;"],
-                   common + [(self.directory / "project-main.conf", "/etc/nginx/nginx.conf")])
+                   common + [(self.directory / "project-main.conf", "/etc/nginx/nginx.conf"),
+                             (self.directory / "project.conf", "/fixtures/project.conf")])
         self.proxy = self.slug + "_proxy"
         self.start(self.proxy, "nginx:1.29.1-alpine",
                    ["nginx", "-g", "daemon off;"],
@@ -252,8 +254,10 @@ with response:
         self.prepare(public=True, legacy_root_at_start=True)
         self.assertEqual(self.request('/course/index.php')[0], 404)
         path = self.directory / 'project.conf'
-        self.write(path, path.read_text(encoding='utf-8').replace(
-            'root /var/www/html;', 'root /var/www/html/public;'))
+        inode = path.stat().st_ino
+        subprocess.run([sys.executable, '-B', str(ROOT / 'lib/web.py'), '--public-root', str(path)],
+                       check=True, capture_output=True, timeout=10)
+        self.assertEqual(path.stat().st_ino, inode)
         self.assertEqual(self.request('/course/index.php')[0], 404)
         self.docker('exec', self.slug + '_nginx', 'nginx', '-t')
         self.docker('exec', self.slug + '_nginx', 'nginx', '-s', 'reload')

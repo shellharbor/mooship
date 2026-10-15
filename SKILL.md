@@ -40,6 +40,7 @@ Prefer existing shared helpers over new inline parsers. When editing generated c
 
 - **New installations:** reject occupied project directories and leftover resources. `nginxproxy` is a reserved slug. Keep resolved paths under `/var/www`, reject project-directory symlinks, and match slugs exactly: an operation on `lms` must not affect `lms2`.
 - **Native databases:** do not reuse existing databases/users or drop them based only on a name. Removal requires a matching `.mooship-native-database` ownership marker. Failed creation or an older project without that marker does not establish ownership.
+- **Deployment gates:** validate ports before creating resources; exempt the selected native DB listener from free-port checks. Native `--db-host` controls the application's route to the locally managed DB. Preserve PHP-side TCP/authentication probes, bounded service waits, refusal to initialize unknown/partial DB states, nginx reload after document-root changes, and cron startup after installation/restore. See `docs/PREFLIGHT.md`.
 - **Database branches:** keep templates and integration checks on the tested branches documented in `docs/CI.md`. A branch change requires coordinated data-volume, migration, and backup/restore validation. Updating a template never authorizes downgrading an existing project's database files.
 - **Secrets:** preserve `umask 077`, mode `600` for `.env`, `config.php`, and archives, and localhost-only database, Redis, and PHP-FPM publications. Use the existing environment parser rather than executing `.env` as shell code. Never print credentials or private certificate material in reports; endpoints receiving secrets require HTTPS.
 - **Shared proxy:** other sites depend on `/var/www/nginxproxy`. Use `lib/proxy.py` for lifecycle edits; it targets Mooship's generated configuration format, not arbitrary YAML. Preserve neighboring entries, comments, disabled declarations, and valid empty collections. Deactivation must apply Compose changes so the site's network and certificate volume detach.
@@ -114,6 +115,7 @@ Use [docs/CI.md](docs/CI.md) and the matching workflow for optional checks:
 - Database round trips: `MOOSHIP_DOCKER_TESTS=1`.
 - HTTP/HTTPS routing: `MOOSHIP_HTTP_INTEGRATION=1`.
 - Real proxy lifecycle: `MOOSHIP_PROXY_INTEGRATION=1`.
+- Native DB routing/state probes: `MOOSHIP_NATIVE_PREFLIGHT_TESTS=1`, with `MOOSHIP_PREFLIGHT_PHP_IMAGE` set to an existing PHP image with both PDO drivers and `MOOSHIP_PREFLIGHT_DB=postgres` or `mysql`. This uses disposable databases; see `docs/PREFLIGHT.md` and the E2E workflow.
 - Pre-pull the component images listed in `.github/workflows/integration.yml`; the tests themselves do not pull them. Use its exact test selectors and environment settings.
 - Install pinned development tools from `.github/requirements.txt` in a separate environment when needed. Keep runtime helpers dependency-free. The combined statement/branch coverage gate is 90% for `lib/`, including subprocesses; it does not measure Bash or Moodle/PHP.
 

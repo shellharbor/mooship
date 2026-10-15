@@ -166,8 +166,7 @@ Client ──► nginxproxy :80 / :443 ──(Docker network <slug>)──► <s
 
 - **OS:** Ubuntu 20.04+ (server), root privileges (`sudo`).
 - **Host utilities:**
-  - `python3` for editing Docker Compose and nginx configuration;
-  - `ss` (iproute2) for finding available ports;
+  - `python3` for configuration editing and TCP port availability checks;
   - `curl`;
   - `tar`, `gzip`, and standard coreutils for full backups;
   - `sudo`, required only for native PostgreSQL;
@@ -304,7 +303,7 @@ Generated names are 15 characters long: the first is a letter `[a-z]`, and the r
 
 ### Ports
 
-If a port is omitted, the script chooses a random available port from the specified range, checking with `ss` for up to 100 attempts. An explicitly supplied port is used as-is, without checking whether it is occupied.
+Every explicit port must be a decimal integer from 1 to 65535; leading zeroes are normalized. Selected service ports must be distinct, and 80/443 are reserved for the shared proxy. Availability checks use a real loopback TCP bind and Docker's published-port inventory; an occupied native DB port is expected and exempt. If omitted, a port is chosen from its range with up to 100 attempts, excluding explicit assignments. See [preflight details](docs/PREFLIGHT.md).
 
 | Argument | Automatic range | Purpose |
 |---|---|---|
@@ -423,8 +422,8 @@ The steps below follow the invocation order in `main()`.
 | 6 | `create_project`, `comment_ssl_blocks` | Copy the template, write a private `.env`, and configure the site without SSL until a certificate is available |
 | 7 | `build_and_start_project` | Build/start PHP, nginx, Redis and DB; wait for process health and check native TCP reachability |
 | 8 | `create_native_database`, PHP DB probe | Create and mark the native DB/user when selected; authenticate from PHP before Moodle initialization |
-| 9 | `install_moodle`, `configure_moodle_config` | Install Moodle code and `config.php`; switch nginx to `public/` for 5.1+ |
-| 10 | `install_moodle_database`, `configure_moodle_mail` | Install through the CLI; save administrator credentials in `.env`; apply SMTP settings when requested. Failure stops deployment |
+| 9 | `install_moodle`, `configure_moodle_config`, `reload_project_nginx` | Install Moodle code and `config.php`; validate/reload nginx after selecting `public/` for 5.1+ |
+| 10 | `install_moodle_database`, `configure_moodle_mail`, `start_moodle_cron` | Verify DB state and install through the CLI; save administrator credentials in `.env`; apply SMTP settings and start cron. Failure stops deployment |
 | 11 | `update_proxy_nginx_conf`, `update_proxy_docker_compose`, `comment_ssl_blocks` | Connect the initialized project to the shared proxy for ACME |
 | 12 | `restart_nginxproxy`, `obtain_ssl_certificate` | Check nginx, issue SSL, and enable HTTPS; failure stops deployment |
 | 13 | `create_project_backup` | Only with `--create-backup`: back up the database, files, configuration, and SSL |

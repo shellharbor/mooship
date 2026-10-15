@@ -28,10 +28,12 @@ Process health is independent of DB availability. PHP's DB probe establishes aut
 
 Cron starts after successful installation/mail configuration, or after restoring data. Older archives without health metadata use live FPM socket and nginx configuration checks. New templates include health checks; Compose parsing alone does not prove readiness.
 
-After Moodle code/config generation, validate and reload nginx so a newly selected `public/` document root is active before publishing the site. Full E2E also waits for health after backup resumes services, before running doctor. Its one-off cron check uses `--keep-alive=0` to execute tasks without the administrator-configured idle polling period.
+After Moodle code/config generation, validate and reload nginx so a newly selected `public/` document root is active before publishing the site. Update the mounted configuration in place: replacing its inode would leave nginx's single-file bind mount reading the old contents even after reload. Full E2E also waits for health after backup resumes services, before running doctor. Its one-off cron check uses `--keep-alive=0` to execute tasks without the administrator-configured idle polling period.
 
 ## Tests
 
 `tests/test_preflight.py` covers invalid/occupied/duplicate ports, native endpoint selection, secret transport, bounded health transitions and installation refusal. Opt-in `tests/test_native_preflight.py` publishes a disposable synthetic PostgreSQL/MySQL DB on a random host port and checks real PHP host-gateway access, wrong credentials, empty/partial/installed states and an unavailable endpoint. Temporary host publications are needed for this test; these are not production databases.
 
 The full E2E matrix installs Moodle 4.5/5.3 with PostgreSQL/MySQL and then checks native routing using its built PHP image. It also checks HTTP, Redis sessions, SMTP, cron, backup retention, systemd schedules and doctor. TLS issuance is outside the synthetic HTTP runner setup.
+
+The opt-in HTTP suite (`MOOSHIP_HTTP_INTEGRATION=1`) includes a real nginx reload regression: an application route under `public/` stays unavailable until the changed document root is loaded, then returns HTTP 200. Use the pre-pulled fixture images from the component integration workflow.

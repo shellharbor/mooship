@@ -15,6 +15,8 @@ Use a configurable native application endpoint, defaulting to host.docker.intern
 
 Add process health for FPM/nginx/Redis, bounded waits, and explicit DB authentication. Start cron only after installation or restoration. Use structured DB installation states instead of parsing foreign help text. Keep compatibility paths for archived configurations without health metadata or a stored native endpoint.
 
+Validate and reload nginx after Moodle configuration selects the document root. Preserve the configuration inode because nginx uses a single-file bind mount; replacing it leaves the container reading the old file. Health of the nginx process alone cannot prove that its loaded configuration matches a changed file. Wait for resumed service health before E2E runs doctor after backups.
+
 ## Alternatives and consequences
 
 - A detected bridge IP alone still couples generated settings to host topology; host-gateway plus an explicit override permits controlled configuration changes.
