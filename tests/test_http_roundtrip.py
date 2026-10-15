@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -37,10 +38,21 @@ class HttpRoundtripTests(unittest.TestCase):
         # Recursive cleanup is limited to the fixture directory created in this workspace.
         self.assertEqual(self.directory.parent, ROOT.resolve())
         self.assertTrue(self.directory.name.startswith(".mooship-http-test-"))
-        self.addCleanup(temporary.cleanup)
+        def cleanup_fixture():
+            # Docker Desktop may release Windows bind mounts shortly after container removal.
+            for attempt in range(11):
+                try:
+                    temporary.cleanup()
+                    return
+                except PermissionError:
+                    if os.name != 'nt' or attempt == 10:
+                        raise
+                    time.sleep(1)
+        self.addCleanup(cleanup_fixture)
         self.slug = "mooship_http_" + uuid.uuid4().hex[:12]
         self.network = self.slug
         self.containers = []
+        self.extra_networks = []
         # Containers run as the invoking user so Linux bind mounts stay readable and writable.
         if hasattr(os, "getuid"):
             self.uid, self.gid = os.getuid(), os.getgid()
@@ -54,6 +66,8 @@ class HttpRoundtripTests(unittest.TestCase):
         for name in reversed(self.containers):
             subprocess.run(["docker", "rm", "--force", name], capture_output=True, timeout=30)
         subprocess.run(["docker", "network", "rm", self.network], capture_output=True, timeout=30)
+        for network in self.extra_networks:
+            subprocess.run(["docker", "network", "rm", network], capture_output=True, timeout=30)
 
     def mount(self, source, target):
         return ["--mount", "type=bind,source=" + str(source) + ",target=" + target + ",readonly"]
@@ -89,10 +103,10 @@ class HttpRoundtripTests(unittest.TestCase):
             shutil.copyfile(keys / "privkey.pem", folder / "privkey.pem")
         return certificates
 
-    def prepare(self, https=False, basic_auth=False, public=False):
+    def prepare(self, https=False, basic_auth=False, public=False, legacy_root_at_start=False):
         project = (ROOT / "moodle/.config/nginx/_site.conf").read_text(encoding="utf-8")
         project = project.replace("MYSITE.COM", "test.example").replace("{SLUG}", self.slug)
-        if public:
+        if public and not legacy_root_at_start:
             project = project.replace("root /var/www/html;", "root /var/www/html/public;")
         if basic_auth:
             project = project.replace('#        auth_basic ', '        auth_basic ')
@@ -144,7 +158,8 @@ class HttpRoundtripTests(unittest.TestCase):
                    ["php-fpm", "--fpm-config", "/fixtures/php-fpm.conf", "--nodaemonize"], common)
         self.start(self.slug + "_nginx", "nginx:1.29.1-alpine",
                    ["nginx", "-g", "daemon off;"],
-                   common + [(self.directory / "project-main.conf", "/etc/nginx/nginx.conf")])
+                   common + [(self.directory / "project-main.conf", "/etc/nginx/nginx.conf"),
+                             (self.directory / "project.conf", "/fixtures/project.conf")])
         self.proxy = self.slug + "_proxy"
         self.start(self.proxy, "nginx:1.29.1-alpine",
                    ["nginx", "-g", "daemon off;"],
@@ -205,6 +220,11 @@ with response:
         self.assertEqual(self.request("/course/", basic_auth)[:2], (200, "COURSE"))
         self.assertEqual(self.request("/virtual/route?id=7", basic_auth)[:2],
                          (200, "ROUTER:/virtual/route?id=7"))
+        # Retired PHP paths are router shims too, including their original query/path info.
+        self.assertEqual(self.request('/retired.php?id=7', basic_auth)[:2],
+                         (200, 'ROUTER:/retired.php?id=7'))
+        self.assertEqual(self.request('/retired.php/extra?id=7', basic_auth)[:2],
+                         (200, 'ROUTER:/retired.php/extra?id=7'))
         # $CFG->xsendfile: PHP hands the file to nginx through the internal /dataroot/ location.
         self.assertEqual(self.request("/sendfile.php", basic_auth)[:2], (200, "synthetic moodledata file"))
         # PHP sees the client address, not nginxproxy's, and clients cannot forge it.
@@ -237,6 +257,35 @@ with response:
 
     def test_http_legacy_document_root(self):
         self.verify_site()
+
+    def test_php_self_requests_resolve_the_synthetic_site_through_the_proxy(self):
+        self.prepare()
+        network = self.slug + '_self_checks'
+        self.extra_networks.append(network)
+        self.docker('network', 'create', '--internal', '--label', 'org.mooship.test=http', network)
+        self.docker('network', 'connect', '--alias', 'self.mooship.test', network, self.proxy)
+        self.docker('network', 'connect', network, self.slug + '_php')
+        result = self.docker('exec', self.slug + '_php', 'php', '-r',
+                             'echo file_get_contents("http://self.mooship.test/course/index.php");')
+        self.assertEqual(result, 'COURSE')
+
+    def test_public_root_change_is_applied_to_the_running_nginx(self):
+        self.prepare(public=True, legacy_root_at_start=True)
+        self.assertEqual(self.request('/course/index.php')[0], 404)
+        path = self.directory / 'project.conf'
+        inode = path.stat().st_ino
+        subprocess.run([sys.executable, '-B', str(ROOT / 'lib/web.py'), '--public-root', str(path)],
+                       check=True, capture_output=True, timeout=10)
+        self.assertEqual(path.stat().st_ino, inode)
+        self.assertEqual(self.request('/course/index.php')[0], 404)
+        self.docker('exec', self.slug + '_nginx', 'nginx', '-t')
+        self.docker('exec', self.slug + '_nginx', 'nginx', '-s', 'reload')
+        for _ in range(20):
+            result = self.request('/course/index.php')
+            if result[:2] == (200, 'COURSE'):
+                break
+            time.sleep(0.1)
+        self.assertEqual(result[:2], (200, 'COURSE'))
 
     def test_http_public_document_root_with_basic_auth(self):
         self.verify_site(basic_auth=True, public=True)

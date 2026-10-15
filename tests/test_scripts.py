@@ -92,6 +92,7 @@ write_project_env; print_summary
         self.fixture()
         result = self.bash('''PROJECT_DIR="$WWW_DIR/test"; DOMAIN=test.example
 docker() { if [[ "$*" == *--help* ]]; then echo help; return 0; fi; return 42; }
+mooship_check_database() { return 3; }
 install_moodle_database
 echo SHOULD_NOT_RUN
 ''')
@@ -217,7 +218,7 @@ echo SHOULD_NOT_RUN
     def test_failed_application_does_not_publish_proxy_configuration(self):
         # Exercise main's ordering with side effects replaced by trace markers.
         result = self.bash('''
-for function in check_root parse_args mooship_require_new_project assign_ports resolve_moodle_version select_php_version_for_moodle select_resource_profile install_docker mooship_require_docker mooship_require_unused_resources ensure_www_dir init_nginxproxy ensure_logrotate create_dhparam create_project comment_ssl_blocks create_native_database build_and_start_project install_moodle configure_moodle_config; do
+for function in check_root parse_args mooship_require_new_project assign_ports resolve_moodle_version select_php_version_for_moodle select_resource_profile install_docker mooship_require_docker mooship_require_unused_resources ensure_www_dir init_nginxproxy ensure_logrotate create_dhparam create_project comment_ssl_blocks create_native_database build_and_start_project install_moodle install_moodle_dependencies configure_moodle_config mooship_check_database reload_project_nginx; do
   eval "$function() { :; }"
 done
 install_moodle_database() { return 42; }
@@ -453,6 +454,7 @@ mooship_wait_database() { :; }
 create_native_database() { :; }; restore_database() { :; }; restart_nginxproxy() { :; }
 ensure_project_docker_resources() { cd "$PROJECT_DIR"; }
 build_and_start_project() { printf 'MODE=%s\\n' "$(site_scheme)"; }
+start_moodle_cron() { :; }
 docker() { printf '%s\\n' "$*" >> "$TEST_DIR/docker.log"; }
 restore_main --slug test --archive "$TEST_DIR/site.tar.gz" <<< test
 ''', source="restore.sh")

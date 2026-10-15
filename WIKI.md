@@ -24,6 +24,7 @@ These local resources are not distributed with the repository. Use them when pro
 ## Decisions and history
 
 - [Published architecture decisions](docs/adr/)
+- [Deployment preflight and readiness decision](docs/adr/0005-deployment-preflight.md)
 - [Changelog](CHANGELOG.md)
 
 ## Mooship
@@ -31,6 +32,8 @@ These local resources are not distributed with the repository. Use them when pro
 - [README, live workflow/release badges, and operations guide](README.md)
 - [Public Mooship AI skill](SKILL.md); optional local Claude Code adapter: `.claude/skills/deploy-moodle/SKILL.md`.
 - [Installation](deploy-moodle.sh)
+- [Port preflight, native DB access, and readiness](docs/PREFLIGHT.md)
+- [Locked production dependency gate](lib/install-dependencies.sh) and [failure-path tests](tests/test_dependencies.py)
 - [Backup](backup.sh), [backup schedule](schedule-backup.sh), and [restore](restore.sh)
 - [Health check (doctor)](doctor.sh) and its [tests with profiles, mail, and retention](tests/test_operations.py)
 - [Full backup procedure](docs/BACKUP.md) and [data preservation decision](docs/adr/0001-safe-deploy-and-full-backups.md)

@@ -99,7 +99,7 @@ mooship_validate_database_identifiers() {
 
 mooship_validate_port() {
     [[ "$1" =~ ^[0-9]{1,5}$ ]] && ((10#$1 > 0 && 10#$1 <= 65535)) ||
-        mooship_die "Invalid database port"
+        mooship_die "Invalid port: expected an integer from 1 to 65535"
 }
 
 mooship_validate_database_settings() {

@@ -1,0 +1,3 @@
+# Container entry points and Linux lifecycle scripts must retain Unix line endings.
+*.sh text eol=lf
+Dockerfile text eol=lf

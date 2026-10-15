@@ -65,6 +65,6 @@ MOOSHIP_COMPOSE_TESTS=1 MOOSHIP_PROXY_COMPOSE_TESTS=1 PYTHONPATH=tests \
   test_proxy_lifecycle.ProxyComposeTests -v
 ```
 
-Component tests require a running Docker daemon and locally available images. Workflows pull their component's images before enabling the opt-in tests; tests themselves never pull images or publish host ports. See the [development checks](../README.md#development-checks) and the integration workflow for exact image lists and commands.
+Component tests require a running Docker daemon and locally available images. Workflows pull their component's images before enabling the opt-in tests; tests themselves never pull images. The regular component suites use internal networks without host publications. E2E's native-routing fixture intentionally publishes a disposable synthetic DB on a random host port to exercise PHP's host-gateway route; see [preflight tests](PREFLIGHT.md). See the [development checks](../README.md#development-checks) and the integration workflow for exact image lists and commands.
 
 Full deployments run on disposable GitHub runners and use HTTP and a synthetic domain. DNS and actual Let's Encrypt issuance require separate target-server checks. The workflow definitions and locally executed checks do not establish a production deployment or branch protection policy.
