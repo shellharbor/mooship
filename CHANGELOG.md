@@ -6,6 +6,7 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### AI-KIT
 
+- 2026-10-15: synchronized public context/wiki availability and clean-checkout documentation validation in the project skill, local registry, and continuity profile; optional AI-KIT paths are described without requiring unpublished resources.
 - 2026-10-15: recorded the tested database branch/migration contract in the public skill and synchronized the reproduced CI failure, successful Compose/database/regression checks, and remaining deployment limits in local context.
 - 2026-10-15: added a portable local `SKILL.md` for Mooship development and operations, replaced stale Claude instructions with an adapter to the same guide, and synchronized discovery, documentation, and context. Preserved ignore rules and avoided global installation.
 - 2026-10-15: refreshed the Git baseline, published-release metadata, and verified GitHub workflow results in local project context and the continuity profile.
@@ -32,6 +33,7 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- 2026-10-15: fixed published context/wiki links to unavailable local AI-KIT resources. Documentation validation now checks targets against the Git file inventory, preventing local ignored files from masking broken links; added regressions for ignored files/directories, pending public files, tracked ignored documents, and command failure.
 - 2026-10-15: restored MySQL 8.4 LTS and PostgreSQL 17 in the new-project template after Dependabot branch upgrades broke the Compose contract. Restricted automated database branch changes and added PostgreSQL image/data-mount assertions; documented that existing deployments need a separate migration rather than an image downgrade.
 - 2026-10-15: explicitly allowed the root `SKILL.md` in `.gitignore` and linked it from README so other AI assistants can read the project guide on GitHub or in a clone. Corrected skill availability instructions while keeping nested agent skills and local AI-KIT files ignored.
 - 2026-10-15: added live main-branch CI, CodeQL, security, integration, configuration, and documentation badges below the README banner, together with latest-release and MIT license badges, so readers can inspect the project's checks and release metadata.

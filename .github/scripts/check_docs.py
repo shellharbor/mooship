@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import List, Set
+from typing import List, Optional, Set
 from urllib.parse import unquote, urlsplit
 
 
@@ -43,7 +43,17 @@ def heading_anchors(text: str) -> Set[str]:
     return anchors
 
 
-def check_document(path: Path, root: Path) -> List[str]:
+def list_repository_files(root: Path) -> Set[Path]:
+    """Include tracked files and pending public files, but not ignored local tooling."""
+    root = root.resolve()
+    listing = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=str(root), check=True, capture_output=True,
+    ).stdout.decode("utf-8").split("\0")
+    return {root / name for name in listing if name}
+
+
+def check_document(path: Path, root: Path, repository_files: Optional[Set[Path]] = None) -> List[str]:
     errors = []
     for line in prose_lines(path.read_text(encoding="utf-8")):
         line = re.sub(r"`+[^`]*`+", "", line)
@@ -66,6 +76,11 @@ def check_document(path: Path, root: Path) -> List[str]:
                 continue
             if not target.exists():
                 errors.append(f"{path.name}: missing link target: {destination}")
+            elif repository_files is not None and not (
+                target in repository_files or
+                (target.is_dir() and any(target in candidate.parents for candidate in repository_files))
+            ):
+                errors.append(f"{path.name}: link target is not included in the repository: {destination}")
             elif link.fragment and target.suffix.lower() == ".md":
                 if unquote(link.fragment) not in heading_anchors(target.read_text(encoding="utf-8")):
                     errors.append(f"{path.name}: missing heading anchor: {destination}")
@@ -74,13 +89,9 @@ def check_document(path: Path, root: Path) -> List[str]:
 
 def main() -> int:
     root = Path(__file__).resolve().parents[2]
-    # Include pending public docs locally; ignored AI-KIT files are not part of CI.
-    listing = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "*.md"],
-        cwd=str(root), check=True, capture_output=True,
-    ).stdout.decode("utf-8").split("\0")
-    documents = sorted({root / name for name in listing if name})
-    errors = [error for path in documents for error in check_document(path, root)]
+    repository_files = list_repository_files(root)
+    documents = sorted(path for path in repository_files if path.suffix == ".md")
+    errors = [error for path in documents for error in check_document(path, root, repository_files)]
     try:
         payload = json.loads((root / "examples/endpoint-payload.json").read_text(encoding="utf-8"))
         if not isinstance(payload, dict):

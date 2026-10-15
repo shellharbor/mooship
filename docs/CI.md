@@ -37,6 +37,8 @@ Secret scanning explicitly trusts only the mounted checkout and checks that Git 
 
 ## Run checks locally
 
+The documentation gate checks tracked Markdown even when it matches `.gitignore`, plus pending non-ignored Markdown. Link targets must also be tracked or pending non-ignored files; a directory link needs at least one such file below it. An ignored local file cannot satisfy a public link merely because it exists on the developer's machine. Describe optional local AI-KIT resources as code paths instead of Markdown links, and verify documentation changes in a clean checkout when changing their distribution.
+
 On Linux, use a separate environment for development tools:
 
 ```bash

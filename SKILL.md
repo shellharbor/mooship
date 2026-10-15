@@ -95,7 +95,7 @@ For documentation, run:
 python3 -B .github/scripts/check_docs.py
 ```
 
-The documentation checker discovers non-ignored project Markdown; check ignored local skills and their links explicitly as well.
+The documentation checker uses Git's inventory: tracked Markdown remains checked even when ignored, and pending non-ignored documents are included. Public links must target repository files or directories containing them; ignored local files cannot satisfy those links. Describe optional local AI-KIT resources as code paths. Check ignored local skills separately when editing them.
 
 For Compose or proxy edits, validate generated variants rather than running the raw placeholder template:
 
@@ -124,4 +124,4 @@ Review the diff and report the changed behavior, checks actually run, skipped ch
 
 Update `CHANGELOG.md` under `Unreleased` after file changes. When local context files exist, keep `PROJECT_CONTEXT.md`, `WIKI.md`, and the continuity skill synchronized with lasting facts. Record significant architectural choices through the project's decision-log convention when present.
 
-This root `SKILL.md` is versioned through the explicit `!/SKILL.md` exception in [.gitignore](.gitignore), so it is available on GitHub and in a normal clone. Local AI-KIT files and nested agent adapters remain ignored; do not force-add them, install skills globally, or change their ignore rules unless the user requests that action. The local Claude adapter at `.claude/skills/deploy-moodle/SKILL.md`, when present, delegates to this file; keep it as an adapter rather than a second copy of these instructions.
+This root `SKILL.md` is versioned and linked from README, so it is available on GitHub and in a normal clone. Local `ai-kit/`, `.agents/`, and `.claude/` resources remain ignored; do not force-add them, install skills globally, or change their ignore rules unless the user requests that action. Already tracked context and wiki files remain subject to public documentation checks even when they match ignore rules. The local Claude adapter at `.claude/skills/deploy-moodle/SKILL.md`, when present, delegates to this file; keep it as an adapter rather than a second copy of these instructions.

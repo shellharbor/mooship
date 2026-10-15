@@ -1,36 +1,35 @@
 # WIKI
 
-Project knowledge map. Keep current facts in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md); use this file for links and brief explanations.
+Project knowledge map. Public links target files included in the repository. Optional local AI-KIT paths are listed as code because they may be absent from a clone. Keep current facts in [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
 ## Getting started
 
-- [Agent instructions](AGENTS.md)
+- [README and operations guide](README.md)
+- [Public Mooship AI skill](SKILL.md)
 - [Project context](PROJECT_CONTEXT.md)
-- [Context maintenance workflow](.agents/skills/project-continuity/SKILL.md)
-- [Model routing](ai-kit/MODELS.md)
-- [Engineering rules](ai-kit/ENGINEERING.md)
-- [Intent and reconstructed context](ai-kit/INTENT.md)
-- [Agent adapters](ai-kit/ADAPTERS.md)
-- [Skill registry](ai-kit/SKILLS.md)
 - [Git exclusions](.gitignore)
 
-## Verified stack guides
+## Local AI-KIT (optional)
 
-- [Laravel](ai-kit/stacks/LARAVEL.md)
-- [Go](ai-kit/stacks/GO.md)
-- [Python](ai-kit/stacks/PYTHON.md)
-- [Moodle](ai-kit/stacks/MOODLE.md)
+These local resources are not distributed with the repository. Use them when provided in the working checkout:
+
+- Agent instructions: `AGENTS.md`.
+- Context maintenance: `.agents/skills/project-continuity/SKILL.md`.
+- Model routing and engineering: `ai-kit/MODELS.md`, `ai-kit/ENGINEERING.md`.
+- Intent, adapters, and skill registry: `ai-kit/INTENT.md`, `ai-kit/ADAPTERS.md`, `ai-kit/SKILLS.md`.
+- Stack guides: `ai-kit/stacks/LARAVEL.md`, `ai-kit/stacks/GO.md`, `ai-kit/stacks/PYTHON.md`, `ai-kit/stacks/MOODLE.md`.
+- Container standard: `ai-kit/CONTAINERS.md`.
+- Local decision log and ADR template: `docs/DECISIONS.md`, `docs/adr/0000-template.md`.
 
 ## Decisions and history
 
-- [Decision log](docs/DECISIONS.md)
-- [ADR template](docs/adr/0000-template.md)
+- [Published architecture decisions](docs/adr/)
 - [Changelog](CHANGELOG.md)
 
 ## Mooship
 
 - [README, live workflow/release badges, and operations guide](README.md)
-- [Public Mooship AI skill](SKILL.md) and [local Claude Code adapter](.claude/skills/deploy-moodle/SKILL.md)
+- [Public Mooship AI skill](SKILL.md); optional local Claude Code adapter: `.claude/skills/deploy-moodle/SKILL.md`.
 - [Installation](deploy-moodle.sh)
 - [Backup](backup.sh), [backup schedule](schedule-backup.sh), and [restore](restore.sh)
 - [Health check (doctor)](doctor.sh) and its [tests with profiles, mail, and retention](tests/test_operations.py)
