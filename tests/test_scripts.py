@@ -366,7 +366,7 @@ docker compose --project-directory "$PROJECT_DIR" -f "$PROJECT_DIR/docker-compos
                                       [volume["target"] for volume in services["db"]["volumes"]])
                         self.assertIn("shared_buffers=512MB", services["db"]["command"])
                     self.assertEqual(services["php"]["environment"]["PHP_FPM_MAX_CHILDREN"], "16")
-                    self.assertNotIn("entrypoint", services["cron"])
+                    self.assertIsNone(services["cron"].get("entrypoint"))
                     self.assertIn("cron.php", " ".join(services["cron"]["command"]))
                     self.assertIn("redis", services["php"]["depends_on"])
                     for service in ("php", "redis", "db"):

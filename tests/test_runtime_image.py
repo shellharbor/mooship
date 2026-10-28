@@ -13,6 +13,7 @@ import uuid
 
 APP_IMAGE = os.environ.get("MOOSHIP_APP_IMAGE", "shellharbor/mooship:dev-moodle4.5.15-php8.3")
 WEB_IMAGE = os.environ.get("MOOSHIP_WEB_IMAGE", "shellharbor/mooship:dev-moodle4.5.15-nginx")
+PHP82_IMAGE = "php:8.2.35-fpm-bookworm@sha256:4d81f8b24a4b9cbe263093d5e2fbaa49647b1290193488b936f08355933a5060"
 
 
 def docker(*args, timeout=120):
@@ -135,6 +136,25 @@ echo json_encode(['actual' => PHP_VERSION, 'accepted' => $accepted]);
         response = json.loads(self.assert_ok(result))
         self.assertEqual(response["actual"].split(".")[:2], ["8", "3"])
         self.assertEqual(len(response["accepted"]), 8)
+
+    def test_host_startup_accepts_initial_moodle43_on_patched_php82_and_rejects_other_sources(self):
+        self.assert_ok(docker("pull", PHP82_IMAGE, timeout=300))
+        policy = Path(__file__).resolve().parents[1] / "moodle/.docker/php"
+        with tempfile.TemporaryDirectory(prefix="mooship-moodle-floor-") as temporary:
+            source = Path(temporary)
+            for release, allowed in (("4.3", True), ("4.3.0", True), ("4.2.99", False), ("5.3", False)):
+                with self.subTest(release=release):
+                    (source / "version.php").write_text("<?php\n$release = '" + release + " (Build: 20231009)';\n", encoding="utf-8")
+                    result = docker("run", "--rm", "--read-only", "--network", "none",
+                                    "--mount", "type=bind,source=" + str(policy) + ",target=/opt/mooship,readonly",
+                                    "--mount", "type=bind,source=" + str(source) + ",target=/var/www/html,readonly",
+                                    "--entrypoint", "/bin/sh", PHP82_IMAGE,
+                                    "/opt/mooship/runtime-entrypoint.sh", "php", "-r", "echo PHP_VERSION;")
+                    if allowed:
+                        self.assertEqual(self.assert_ok(result).strip(), "8.2.35")
+                    else:
+                        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertIn("[ERROR]", result.stderr)
 
     def test_image_contract_and_invalid_configuration(self):
         self.password = "Test_'$\\&-" + uuid.uuid4().hex
