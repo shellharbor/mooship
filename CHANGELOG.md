@@ -43,6 +43,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- Fix PHP 8.2 database-probe diagnostics when PHP reads source from stdin: write to `php://stderr` because CLI stream constants may be absent. Preserve expected failure/partial-state exit codes and cover the lowest supported patched runtime.
+
 - Enforce per-branch PHP security floors (8.2.35, 8.3.36, 8.4.27, 8.5.12) for CVE-2026-109618/CVE-2026-109619 and Moodle 4.3+ compatibility; remove PHP 7.4/8.0/8.1 templates, pin patched bases, and guard builds/startup/activation/restore against unsafe runtimes. Require policy-aware toolkits from the Python CLI, extend boundary/lifecycle/image tests and E2E coverage, and document migration plus obsolete 1.2.0 artifacts. Prepare version 1.2.1 without implying publication.
 
 - 2026-10-28: require LF checkout for standalone Docker assets and verify nginx's actual Docker HEALTHCHECK independently of DB availability. Windows CRLF conversion made the original locally published nginx health payload fail; canonical Git LF export is required for corrected image packaging.

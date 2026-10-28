@@ -30,7 +30,7 @@ try {
         }
         if (!in_array('mdl_config', $tables, true) ||
             !$db->query("SELECT value FROM mdl_config WHERE name = 'version'")->fetchColumn()) {
-            fwrite(STDERR, "[ERROR] The database is partially installed; investigate before retrying.\n");
+            file_put_contents('php://stderr', "[ERROR] The database is partially installed; investigate before retrying.\n");
             exit(4);
         }
     } elseif ($mode !== 'connect') {
@@ -38,7 +38,7 @@ try {
     }
 } catch (Throwable $error) {
     // Driver exceptions can contain connection details. Report a fixed actionable message.
-    fwrite(STDERR, "[ERROR] Database probe failed from PHP. Check the host, port, credentials, "
+    file_put_contents('php://stderr', "[ERROR] Database probe failed from PHP. Check the host, port, credentials, "
         . "listen_addresses/pg_hba.conf (PostgreSQL), bind-address/grants (MySQL), and firewall.\n");
     exit(1);
 }

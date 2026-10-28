@@ -127,6 +127,7 @@ Assess image impact whenever behavior, dependencies, or configuration changes. T
 | Root `Dockerfile`, its downloaded Moodle source, base images or extension pins | Trace affected stages; shared Moodle code changes require matching `app` and `web` builds. Update Moodle version, commit and archive hash together. |
 | `docker/*.php`, app entrypoint, cron, health check, FPM settings, `moodle/.config/php/mooship.ini` | These are copied into `app`; rebuild it when these inputs change. |
 | `docker/nginx.conf.template`, `docker/web-entrypoint.sh`, `docker/health.txt` | These are copied into `web`; rebuild it when these inputs change. |
+| `moodle/.docker/php/runtime-policy.json`, `check-runtime.php`, patched PHP bases | Shared security contract: synchronize host PHP/cron templates and standalone app/source stages, then rebuild affected targets and verify actual patch floors. The web target uses the checked source stage. |
 | `.dockerignore` or newly added runtime files | Verify the required inputs enter the build context and are copied into the correct target. |
 | Compose, Kubernetes manifests, environment examples | Usually external to the images; validate configuration and runtime compatibility. Rebuild only if image contents or their startup contract also need changes. |
 | Host installer, lifecycle utilities, `lib/`, other host templates, documentation | Not copied into the standalone images. Check whether the behavior also needs a corresponding runtime change; otherwise no image rebuild is needed. |

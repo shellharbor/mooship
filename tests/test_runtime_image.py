@@ -16,10 +16,10 @@ WEB_IMAGE = os.environ.get("MOOSHIP_WEB_IMAGE", "shellharbor/mooship:dev-moodle4
 PHP82_IMAGE = "php:8.2.35-fpm-bookworm@sha256:4d81f8b24a4b9cbe263093d5e2fbaa49647b1290193488b936f08355933a5060"
 
 
-def docker(*args, timeout=120):
+def docker(*args, timeout=120, input_text=None):
     return subprocess.run(
         ["docker", *args], capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=timeout, check=False,
+        errors="replace", timeout=timeout, check=False, input=input_text,
     )
 
 
@@ -28,6 +28,10 @@ class RuntimeImageTests(unittest.TestCase):
     def setUp(self):
         for image in (APP_IMAGE, WEB_IMAGE, "postgres:17-alpine", "mysql:8.4"):
             self.assert_ok(docker("image", "inspect", image))
+        from test_runtime_policy import POLICY
+        actual = docker("run", "--rm", "--read-only", "--network", "none", "--entrypoint", "php",
+                        APP_IMAGE, "-r", "echo PHP_VERSION;")
+        POLICY.check_php(self.assert_ok(actual).strip())
         self.prefix = "mooship-image-" + uuid.uuid4().hex[:12]
         self.containers = []
         self.volumes = []
@@ -155,6 +159,16 @@ echo json_encode(['actual' => PHP_VERSION, 'accepted' => $accepted]);
                     else:
                         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                         self.assertIn("[ERROR]", result.stderr)
+
+    def test_php82_stdin_database_probe_reports_failures_without_cli_stream_constants(self):
+        self.assert_ok(docker("pull", PHP82_IMAGE, timeout=300))
+        source = (Path(__file__).resolve().parents[1] / "lib/check-database.php").read_text(encoding="utf-8")
+        result = docker("run", "--rm", "-i", "--read-only", "--network", "none", "--entrypoint", "php",
+                        "--env", "MOOSHIP_DB_HOST=127.0.0.1", "--env", "MOOSHIP_DB_PORT=9",
+                        "--env", "MOOSHIP_DB_TYPE=postgres", PHP82_IMAGE, input_text=source)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("[ERROR] Database probe failed from PHP.", result.stderr)
+        self.assertNotIn("Fatal error", result.stdout + result.stderr)
 
     def test_image_contract_and_invalid_configuration(self):
         self.password = "Test_'$\\&-" + uuid.uuid4().hex

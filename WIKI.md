@@ -4,6 +4,8 @@ Project knowledge map. Public links target files included in the repository. Opt
 
 ## Getting started
 
+Read the [mandatory runtime policy](docs/RUNTIME_POLICY.md) before deployment. Published 1.2.0 artifacts predate its PHP security floors; use the reviewed updated source until a security release is published.
+
 - [Mooship v1.2.0 release and native toolkit assets](https://github.com/shellharbor/mooship/releases/tag/v1.2.0)
 - [Published Python CLI on PyPI](https://pypi.org/project/mooship/1.2.0/)
 - [README and operations guide](README.md)

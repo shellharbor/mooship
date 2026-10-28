@@ -999,16 +999,17 @@ The exit code follows the Nagios convention (0 OK, 1 WARNING, 2 CRITICAL), so th
 
 1. Enable maintenance mode: `maintenance.php --enable`.
 2. Back up the database and files (see above).
-3. Replace the code in `public_html/` with the new version, **preserving `config.php`** and third-party plugins.
-4. Run `docker compose run --rm permissions`.
-5. Run `upgrade.php --non-interactive`.
-6. Disable maintenance mode: `maintenance.php --disable`.
+3. Verify the target Moodle/PHP pair against the [runtime policy](docs/RUNTIME_POLICY.md), then replace the code in `public_html/`, **preserving `config.php`** and third-party plugins.
+4. Update `MOODLE_VERSION` in `.env` to the exact stable source release. Activation and restore reject source/metadata disagreement, including after manual upgrades.
+5. Run `docker compose run --rm permissions`.
+6. Run `upgrade.php --non-interactive`.
+7. Disable maintenance mode: `maintenance.php --disable`.
 
 If the new Moodle version needs a different PHP version:
 
 1. Change `phpXX.Dockerfile` and `phpXX.ini` for the `php` and `cron` services in the project's `docker-compose.yml`.
-2. Run `docker compose up -d --build php cron`.
-3. Update `PHP_VERSION` in `.env` to keep the recorded version consistent.
+2. Update `PHP_VERSION` in `.env` before rebuilding, and copy the current patched Dockerfile plus runtime policy/guard/entrypoint into the site's PHP build context.
+3. Run `docker compose build --pull php cron`, verify the actual PHP patch, then restart through the updated activation script and check readiness. Keep cron's loop as a Compose `command` so the guarded image entrypoint runs.
 
 When upgrading from Moodle 5.0 or earlier to 5.1+, change the nginx document root after replacing the code; the script does this only for fresh deployments.
 
