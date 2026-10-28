@@ -42,6 +42,7 @@ After every task with file changes, briefly record what changed and why: feature
 ### Project
 
 - 2026-10-28: prepared Mooship 1.2.0 distribution: a dependency-free Python CLI modeled on LaraShip, exact-release HTTPS/checksum/archive validation, native command forwarding, reproducible toolkit assets, wheel/sdist checks, Python compatibility CI, and gated Docker Hub/PyPI release workflows. Extended lint/security/dependency checks to the Python package and documented account setup and publication evidence. Existing application images remain separate from host administration.
+- 2026-10-28: integrated the previously isolated PR #6 preflight/readiness/router/dependency fixes into the distribution branch, resolving documentation conflicts and preserving standalone image work. The combined Linux snapshot passed 130 regressions (145 discovered, 15 opt-in skipped); wheel/sdist metadata and actual native release archive verification passed.
 
 - 2026-10-15: verified the host preflight implementation in GitHub E2E run 38787890321 at ff1fbf2: all four Moodle 4.5/5.3 and PostgreSQL/MySQL cases passed, including router/API/shims, SMTP, cron, backups, systemd schedules and doctor. Local validation passed 108 regressions (120 discovered, 12 opt-in skipped), both real host-gateway DB probes, HTTP/HTTPS and Compose/proxy checks. Dependency Review remains separately blocked by disabled repository Dependency Graph.
 
