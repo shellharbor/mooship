@@ -4,6 +4,8 @@ Project knowledge map. Public links target files included in the repository. Opt
 
 ## Getting started
 
+- [Mooship v1.2.0 release and native toolkit assets](https://github.com/shellharbor/mooship/releases/tag/v1.2.0)
+- [Published Python CLI on PyPI](https://pypi.org/project/mooship/1.2.0/)
 - [README and operations guide](README.md)
 - [Standalone Moodle images, Compose, Kubernetes, and Docker Hub](docs/DOCKER.md)
 - [Image impact assessment, synchronization, rebuilds, and checks](docs/DOCKER.md#keeping-images-in-sync)

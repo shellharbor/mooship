@@ -23,6 +23,8 @@ shellharbor/mooship:1.2.0-moodle4.5.15-nginx
 
 PHP and nginx must use the matching Moodle source. No `latest` alias or untested architecture is published. Record the resulting digests and prefer digest references in production. The [Docker guide](DOCKER.md#tests-and-later-publication) also supports a checked manual publication using an existing local Docker login; always set MOOSHIP_VERSION and VCS_REF to the release version and exact source commit.
 
+For the initial 1.2.0 publication, use `1.2.0-moodle4.5.15-nginx-r1`: it corrects a Windows CRLF packaging defect in the original nginx tag's health response. The corrected image uses the same tagged source exported with `core.autocrlf=false`, and preserves the original tag/digest. The PHP tag is unchanged. Check the actual Docker health state before publishing; an HTTP 200 assertion alone is insufficient.
+
 ## PyPI
 
 Configure the pending publisher described in [the Python guide](PYTHON.md#pypi-publication), create GitHub environment **pypi**, and set variable `PYPI_PUBLISH=true`. The isolated publish job receives only built distributions and short-lived OIDC credentials. No long-lived PyPI token or build-source checkout is needed in that job.

@@ -1,12 +1,20 @@
 # Standalone Moodle images
 
-The root Dockerfile builds a Moodle 4.5.15/PHP 8.3 runtime and a matching nginx companion for later publication as `shellharbor/mooship`. PostgreSQL 17 or MySQL 8.4 runs separately. The existing host installer is an independent deployment option. These application images do not manage Docker or host directories.
+The root Dockerfile builds a Moodle 4.5.15/PHP 8.3 runtime and a matching nginx companion published as `shellharbor/mooship`. PostgreSQL 17 or MySQL 8.4 runs separately. The existing host installer is an independent deployment option. These application images do not manage Docker or host directories.
 
-Build these images locally until they are published. The `dev-*` tags below identify local builds, not an established release. Runtime verification covers Linux amd64; other architectures require their own build and installation checks.
+The published 1.2.0 pair is `1.2.0-moodle4.5.15-php8.3` and `1.2.0-moodle4.5.15-nginx-r1`. Use the corrected `nginx-r1` companion: the original nginx tag contains a Windows CRLF health response that fails Docker's health check. The `dev-*` tags below identify local source builds. Runtime verification covers Linux amd64; other architectures require their own build and installation checks.
 
 ## Build and install with Compose
 
-Run from the repository root on a Linux Docker host with Compose v2+. Docker Desktop can build/test the images; production secret-file ownership examples assume Linux.
+Run from the repository root on a Linux Docker host with Compose v2+. Docker Desktop can build/test the images; production secret-file ownership examples assume Linux. To use the published pair, export the image references and copy the configuration example:
+
+```bash
+export MOOSHIP_APP_IMAGE=shellharbor/mooship:1.2.0-moodle4.5.15-php8.3
+export MOOSHIP_WEB_IMAGE=shellharbor/mooship:1.2.0-moodle4.5.15-nginx-r1
+cp docker/.env.example docker/.env
+```
+
+Alternatively, build the development tags from source without the above image overrides:
 
 ```bash
 docker build --target app -t shellharbor/mooship:dev-moodle4.5.15-php8.3 .
@@ -107,6 +115,8 @@ kubectl apply -f deploy/k8s/runtime.yml
 Run the final command only after installation succeeds. Remove the admin Secret after success if no longer needed. A partial install needs investigation and an explicitly reset empty DB before retry; the Job has no automatic retry. Ingress/TLS, DB transport, network policy and backups depend on the target cluster. These manifests do not establish a tested production cluster deployment.
 
 ## Keeping images in sync
+
+Keep container assets LF-only, including `docker/health.txt`; a CRLF response can pass a stripped HTTP assertion while failing Docker's exact liveness probe. The runtime suite checks the actual nginx Docker health state independently of the database. For a release build from Windows, export the tagged inputs using `git -c core.autocrlf=false archive` into a clean build context; ordinary Windows checkout/archive conversion can otherwise change the image bytes.
 
 Assess image impact whenever behavior, dependencies, or configuration changes. The host installer and standalone runtime are separate implementations; inspect both when the same behavior applies to them, respecting their supported Moodle/PHP versions.
 

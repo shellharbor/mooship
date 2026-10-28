@@ -4,7 +4,7 @@ Install Mooship through pip or pipx, then use one command for its existing Moodl
 
 ## Install the CLI
 
-Version 1.2.0 introduces Python packaging. Until it is published, install a reviewed checkout with `pipx install .` or `python -m pip install .` in a virtual environment. After publication:
+Version 1.2.0 is published on [PyPI](https://pypi.org/project/mooship/1.2.0/). A reviewed checkout can also be installed with `pipx install .` or `python -m pip install .` in a virtual environment. For the published CLI:
 
 ```bash
 pipx install mooship==1.2.0
