@@ -21,6 +21,8 @@ For a portable application image, see the [standalone Moodle Docker guide](docs/
 
 The [Python CLI](docs/PYTHON.md) provides a dependency-free `mooship` command for verified toolkit installation and the existing deployment, lifecycle, backup/restore and diagnostics scripts. Version 1.2.0 introduces packaging for pip/pipx; use `pipx install .` from a reviewed checkout until publication. See [release publication](docs/RELEASING.md) for Docker Hub and PyPI setup and verification.
 
+Deployment validates ports and service readiness before publishing a site. For native databases, `--db-host HOST` selects the container-reachable address (default `host.docker.internal` with Linux host-gateway mapping). See [preflight, native database access, and readiness](docs/PREFLIGHT.md) for requirements and checks.
+
 The `mooship/` folder is self-contained. It includes the deployment script, project and proxy templates, management utilities, examples, and an [AI assistant skill](SKILL.md). Copy the entire folder to a server or place it in a separate Git repository; it does not require files from outside the folder.
 
 ---
@@ -168,8 +170,7 @@ Client ──► nginxproxy :80 / :443 ──(Docker network <slug>)──► <s
 
 - **OS:** Ubuntu 20.04+ (server), root privileges (`sudo`).
 - **Host utilities:**
-  - `python3` for editing Docker Compose and nginx configuration;
-  - `ss` (iproute2) for finding available ports;
+  - `python3` for configuration editing and TCP port availability checks;
   - `curl`;
   - `tar`, `gzip`, and standard coreutils for full backups;
   - `sudo`, required only for native PostgreSQL;
@@ -292,6 +293,7 @@ The values are written to `.env` (`MOOSHIP_PROFILE`, `PHP_FPM_*`, `PG_*`, `DB_SH
 | Argument | Default | Description |
 |---|---|---|
 | `--db-native` | off | Use host PostgreSQL or MySQL instead of a container |
+| `--db-host HOST` | `host.docker.internal` | Container-reachable address of the same locally managed native DB; requires `--db-native` |
 | `--db-root-password PASS` | — | Root password for **native** MySQL. Required with `--db-native --db-type mysql`. Used only to create the database and user; **never saved** |
 | `--db-postgres-name NAME` | generated | PostgreSQL database name |
 | `--db-postgres-user USER` | generated | PostgreSQL user |
@@ -305,7 +307,7 @@ Generated names are 15 characters long: the first is a letter `[a-z]`, and the r
 
 ### Ports
 
-If a port is omitted, the script chooses a random available port from the specified range, checking with `ss` for up to 100 attempts. An explicitly supplied port is used as-is, without checking whether it is occupied.
+Every explicit port must be a decimal integer from 1 to 65535; leading zeroes are normalized. Selected service ports must be distinct, and 80/443 are reserved for the shared proxy. Availability checks use a real loopback TCP bind and Docker's published-port inventory; an occupied native DB port is expected and exempt. If omitted, a port is chosen from its range with up to 100 attempts, excluding explicit assignments. See [preflight details](docs/PREFLIGHT.md).
 
 | Argument | Automatic range | Purpose |
 |---|---|---|
@@ -422,10 +424,10 @@ The steps below follow the invocation order in `main()`.
 | 4 | `install_docker`, preflight checks | Verify Docker/Compose availability and absence of previous project resources; for a native database, check that the database and role do not exist before creating the directory |
 | 5 | `ensure_www_dir`, `init_nginxproxy`, `ensure_logrotate`, `create_dhparam` | Create base directories, the shared proxy, and the logrotate configuration when absent; optionally generate dhparam |
 | 6 | `create_project`, `comment_ssl_blocks` | Copy the template, write a private `.env`, and configure the site without SSL until a certificate is available |
-| 7 | `create_native_database` | Only with `--db-native`: create the database and user, then record ownership |
-| 8 | `build_and_start_project` | Create the network and volumes, build and start services; required services must be running, and the containerized database must pass its health check |
-| 9 | `install_moodle`, `configure_moodle_config` | Install Moodle code and `config.php`; switch nginx to `public/` for 5.1+ |
-| 10 | `install_moodle_database`, `configure_moodle_mail` | Install through the CLI; save administrator credentials in `.env`; apply SMTP settings when requested. Failure stops deployment |
+| 7 | `build_and_start_project` | Build/start PHP, nginx, Redis and DB; wait for process health and check native TCP reachability |
+| 8 | `create_native_database`, PHP DB probe | Create and mark the native DB/user when selected; authenticate from PHP before Moodle initialization |
+| 9 | `install_moodle`, `install_moodle_dependencies`, `configure_moodle_config`, `reload_project_nginx` | Install Moodle code, declared locked production dependencies and `config.php`; validate/reload nginx after selecting `public/` for 5.1+ |
+| 10 | `install_moodle_database`, `configure_moodle_mail`, `start_moodle_cron` | Verify DB state and install through the CLI; save administrator credentials in `.env`; apply SMTP settings and start cron. Failure stops deployment |
 | 11 | `update_proxy_nginx_conf`, `update_proxy_docker_compose`, `comment_ssl_blocks` | Connect the initialized project to the shared proxy for ACME |
 | 12 | `restart_nginxproxy`, `obtain_ssl_certificate` | Check nginx, issue SSL, and enable HTTPS; failure stops deployment |
 | 13 | `create_project_backup` | Only with `--create-backup`: back up the database, files, configuration, and SSL |
@@ -604,8 +606,8 @@ Differences between database variants:
 |---|---|---|---|
 | Containerized PostgreSQL | `pgsql` | `<slug>_db` | `5432` |
 | Containerized MySQL | `mysqli` | `<slug>_db` | `3306` |
-| Native PostgreSQL | `pgsql` | `172.17.0.1` | `--port-postgres` or 5432 |
-| Native MySQL | `mysqli` | `172.17.0.1` | `--port-mysql` or 3306 |
+| Native PostgreSQL | `pgsql` | `--db-host` or `host.docker.internal` | `--port-postgres` or 5432 |
+| Native MySQL | `mysqli` | `--db-host` or `host.docker.internal` | `--port-mysql` or 3306 |
 
 `wwwroot` uses `https://<domain>` by default and `http://<domain>` with `--no-ssl`. The same protocol is saved as `SITE_SCHEME` in `.env` and preserved during backup restoration.
 
@@ -637,13 +639,13 @@ docker compose exec db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_
 
 ### Native database (`--db-native`)
 
-- No database container is created in Compose. Moodle connects to `dbhost = 172.17.0.1`, the host IP on the `docker0` interface.
+- No DB container is created. PHP/cron map `host.docker.internal` to Docker's host gateway by default; `--db-host HOST` selects a custom container-reachable address of the same locally managed DB. Its value is saved as `DB_HOST`.
 - The port comes from `--port-postgres`/`--port-mysql`, defaulting to 5432/3306.
 - Project containers use their own `<slug>` network. Its subnet is usually `172.18.0.0/16` or above, rather than `172.17.0.0/16`. Allow access from all relevant Docker subnets, for example `172.16.0.0/12`. Find the exact subnet with `docker network inspect <slug> -f '{{(index .IPAM.Config 0).Subnet}}'`.
 
 **PostgreSQL on the host:**
 
-1. In `postgresql.conf`, the server must listen on the Docker bridge, for example `listen_addresses = 'localhost,172.17.0.1'` (or `'*'`).
+1. Set PostgreSQL `listen_addresses` to the actual host-side Docker gateway interface as well as localhost. Determine the gateway from your Docker configuration; no fixed bridge IP is assumed. See [native preflight](docs/PREFLIGHT.md#native-databases).
 2. Allow Docker subnets in `pg_hba.conf`:
    ```
    host  all  all  172.16.0.0/12  scram-sha-256
@@ -656,7 +658,7 @@ docker compose exec db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_
 **MySQL on the host:**
 
 1. `--db-root-password` is required. Root must authenticate **with a password**: on Ubuntu, root uses `auth_socket` by default, so a password-based `mysql -u root -p…` check will fail.
-2. `bind-address` in `/etc/mysql/mysql.conf.d/mysqld.cnf` must include `172.17.0.1` (or `0.0.0.0`). Restart MySQL after changing it.
+2. MySQL's `bind-address` must accept traffic on the actual Docker-reachable host interface. Restrict access with the firewall and restart MySQL after configuration changes.
 3. The user is created as `'user'@'%'` to allow connections from containers.
 4. If ufw is enabled, allow port 3306 from `172.16.0.0/12`.
 
@@ -667,7 +669,7 @@ sudo bash /opt/mooship/deploy-moodle.sh \
   --slug mylms --domain mylms.example.com \
   --db-type mysql --db-native --db-root-password 'ChangeMe_Root_2026' \
   --ssl-email admin@example.com
-# Result: database and 'user'@'%' created in host MySQL; config.php → 172.17.0.1:3306
+# Result: database and 'user'@'%' created in host MySQL; config.php → host.docker.internal:3306
 ```
 
 ---
@@ -811,14 +813,14 @@ sudo bash /opt/mooship/deploy-moodle.sh \
 ### 7. Native PostgreSQL
 
 ```bash
-# Prerequisites: host PostgreSQL listens on 172.17.0.1; pg_hba.conf allows 172.16.0.0/12
+# Prerequisites: PostgreSQL accepts connections on the Docker-reachable host interface and project subnet
 sudo bash /opt/mooship/deploy-moodle.sh \
   --slug nativepg \
   --domain nativepg.example.com \
   --db-type postgres \
   --db-native \
   --ssl-email admin@example.com
-# Result: database and user created in host PostgreSQL; config.php → 172.17.0.1:5432,
+# Result: database and user created in host PostgreSQL; config.php → host.docker.internal:5432,
 #         no db container
 ```
 

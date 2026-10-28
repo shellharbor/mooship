@@ -52,7 +52,7 @@ restore_main() (
     }
     trap cleanup_restore EXIT
     python3 "$SCRIPT_DIR/lib/state.py" extract "$archive" "$stage" "$SLUG"
-    for key in SITE_HOST SITE_SCHEME DB_NATIVE PHP_VERSION MOODLE_VERSION DB_PORT \
+    for key in SITE_HOST SITE_SCHEME DB_NATIVE DB_HOST PHP_VERSION MOODLE_VERSION DB_PORT \
                DB_POSTGRES_NAME DB_POSTGRES_USER DB_POSTGRES_PASSWORD \
                DB_MYSQL_NAME DB_MYSQL_USER DB_MYSQL_PASSWORD DB_MYSQL_PASSWORD_ROOT AUTH_USER; do
         printf -v "$key" '%s' "$(mooship_read_env "$stage/project/.env" "$key")"
@@ -71,6 +71,9 @@ restore_main() (
     else DB_TYPE=mysql; PORT_MYSQL="$DB_PORT"; fi
     mooship_validate_database_settings
     if [[ "$DB_NATIVE" == true ]]; then
+        # Old archives contain the original bridge address in config.php.
+        NATIVE_DB_HOST="${DB_HOST:-172.17.0.1}"
+        mooship_validate_db_host "$NATIVE_DB_HOST"
         [[ "$DB_TYPE" != mysql || -n "$DB_ROOT_PASSWORD" ]] || error "Native MySQL requires --db-root-password"
         mooship_require_new_native_database
     fi
@@ -108,6 +111,7 @@ restore_main() (
         comment_ssl_blocks
     fi
     build_and_start_project
+    start_moodle_cron
     update_proxy_nginx_conf
     update_proxy_docker_compose
     if [[ "$has_ssl" == false ]]; then comment_ssl_blocks; fi

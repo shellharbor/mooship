@@ -42,14 +42,42 @@ jobs:
 
       - name: Deploy
         run: >
+          gateway=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}') &&
           sudo bash deploy-moodle.sh --slug "$SLUG" --domain "$DOMAIN" --no-ssl
           --db-type "${{ matrix.db }}" --moodle-version "${{ matrix.moodle }}" --profile small
-          --smtp-host 172.17.0.1:1025 --smtp-secure none --noreply-email "noreply@${DOMAIN}"
+          --smtp-host "${gateway}:1025" --smtp-secure none --noreply-email "noreply@${DOMAIN}"
 
       - name: Login page through nginxproxy
         run: |
           curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/login/index.php" -o login.html
           grep -q 'name="username"' login.html
+
+      - name: Resolve the synthetic site domain for Moodle self-checks
+        # The runner's /etc/hosts is not inherited by containers. Moodle 5.3's
+        # router check makes HTTP requests from PHP to the public wwwroot.
+        run: |
+          docker network create --internal mooship-e2e-self-checks
+          docker network connect --alias "$DOMAIN" mooship-e2e-self-checks nginxproxy
+          docker network connect mooship-e2e-self-checks "${SLUG}_php"
+          docker exec -e MOOSHIP_TEST_DOMAIN="$DOMAIN" "${SLUG}_php" php -r '
+            $host = getenv("MOOSHIP_TEST_DOMAIN");
+            exit(gethostbyname($host) === $host ? 1 : 0);
+          '
+
+      - name: Moodle router HTTP responses
+        if: matrix.moodle == '5.3'
+        run: |
+          curl --fail --silent --show-error --max-time 60 "http://${DOMAIN}/core/check/controller/test" -o /dev/null
+          curl --fail-with-body --silent --show-error --max-time 60 "http://${DOMAIN}/api/rest/v2/openapi.json" -o openapi-response.json || {
+            cat openapi-response.json
+            exit 1
+          }
+          code=$(curl --silent --show-error --max-time 60 -o /dev/null -w '%{http_code}' "http://${DOMAIN}/not/a/valid/request")
+          test "$code" = 404
+          for path in /lib/exampleshimroute.php /lib/exampleshimroute2.php; do
+            code=$(curl --silent --show-error --max-time 60 -o /dev/null -w '%{http_code}' "http://${DOMAIN}${path}")
+            test "$code" = 302
+          done
 
       # The project directory is private to root (mode 700)
       - name: Moodle configuration, sessions in Redis, and cron
@@ -63,8 +91,20 @@ jobs:
             password=$(grep "^REDIS_PASSWORD=" .env | cut -d= -f2-)
             docker compose exec -T -e REDISCLI_AUTH="$password" redis \
               redis-cli --scan --pattern "mdl_session_*" | grep -q .
-            docker compose exec -T php php /var/www/html/admin/cli/cron.php > /dev/null
+            docker compose exec -T php php /var/www/html/admin/cli/cron.php --keep-alive=0 > /dev/null
           '
+
+      - name: Native DB routing and installation-state checks
+        # Native host routing uses disposable DB containers, never the runner's own databases.
+        # The normal deployment above has already exercised the container-DB path.
+        env:
+          MOOSHIP_NATIVE_PREFLIGHT_TESTS: '1'
+          MOOSHIP_PREFLIGHT_DB: ${{ matrix.db }}
+          PYTHONPATH: tests
+        run: |
+          export MOOSHIP_PREFLIGHT_PHP_IMAGE
+          MOOSHIP_PREFLIGHT_PHP_IMAGE=$(sudo docker inspect --format '{{.Image}}' e2e_php)
+          python3 -B -m unittest test_native_preflight -v
 
       - name: Mail delivery through SMTP
         run: |
@@ -88,6 +128,15 @@ jobs:
           test ! -e "/etc/systemd/system/mooship-backup-${SLUG}.timer"
 
       # Warnings are expected on a test runner (no certificate, Moodle notices); failures are not
+      - name: Wait for services resumed after backups
+        run: |
+          sudo bash -euo pipefail -c '
+            source ./deploy-moodle.sh
+            SLUG=e2e; PROJECT_DIR=/var/www/e2e
+            cd "$PROJECT_DIR"
+            for service in php nginx redis cron certbot_renew; do mooship_wait_service "$service"; done
+          '
+
       - name: Doctor
         run: |
           status=0
@@ -101,3 +150,22 @@ jobs:
           sudo bash -c 'cd /var/www/e2e && docker compose logs --tail 200' || true
           sudo docker logs --tail 100 nginxproxy || true
           docker logs --tail 50 mailpit || true
+          sudo docker exec e2e_php php /var/www/html/admin/cli/checks.php --type=status -v || true
+          sudo docker exec e2e_php php -r '
+            define("CLI_SCRIPT", true);
+            require("/var/www/html/config.php");
+            $check = new \core\check\environment\router();
+            if (method_exists($check, "get_results")) {
+              foreach ($check->get_results() as $result) {
+                echo $result->get_summary(), "\n", $result->get_details(), "\n";
+              }
+            }
+            if (class_exists(\core\router\apidocs::class)) {
+              try {
+                (new \core\router\apidocs())->openapi_docs(new \GuzzleHttp\Psr7\Response());
+              } catch (\Throwable $error) {
+                fwrite(STDERR, $error->getMessage() . "\n" . $error->getTraceAsString() . "\n");
+                exit(1);
+              }
+            }
+          ' || true

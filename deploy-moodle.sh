@@ -61,6 +61,7 @@ umask 077
 #
 # Other options:
 #   --redis-password PASS        Redis password (also used for Moodle sessions)
+#   --db-host HOST              Native DB address reachable from PHP (default host.docker.internal)
 #   --create-dhparam             Create dhparam.pem for SSL (takes several minutes)
 #   --enable-basic-auth          Enable HTTP Basic Authentication
 #   --auth-user USER             Basic Auth username (generated if omitted)
@@ -80,6 +81,7 @@ APP_TYPE="moodle"
 TEMPLATE_DIR="${SCRIPT_DIR}/${APP_TYPE}"
 MOODLE_REPOSITORY="https://github.com/moodle/moodle"
 source "${SCRIPT_DIR}/lib/common.sh"
+source "${SCRIPT_DIR}/lib/preflight.sh"
 
 # ======================== Colors =============================
 RED='\033[0;31m'
@@ -143,9 +145,8 @@ find_free_port() {
 
     while [[ $ATTEMPTS -lt $MAX_ATTEMPTS ]]; do
         local PORT=$(( RANDOM % RANGE + MIN ))
-        # Use ss to check that the port is available
-        if ! ss -tlnp 2>/dev/null | grep -q ":${PORT} " && \
-           ! ss -ulnp 2>/dev/null | grep -q ":${PORT} "; then
+        # Exclude selected ports, occupied TCP sockets, and Docker publications.
+        if [[ "$PORT" != 80 && "$PORT" != 443 ]] && mooship_port_available "$PORT"; then
             echo "$PORT"
             return 0
         fi
@@ -338,6 +339,7 @@ DB_POSTGRES_NAME=""
 DB_POSTGRES_USER=""
 DB_POSTGRES_PASSWORD=""
 DB_NATIVE=false
+NATIVE_DB_HOST=""
 DB_ROOT_PASSWORD=""
 CREATE_DHPARAM=false
 ENABLE_BASIC_AUTH=false
@@ -409,6 +411,7 @@ parse_args() {
             --db-postgres-user)       DB_POSTGRES_USER="$2";       shift 2 ;;
             --db-postgres-password)   DB_POSTGRES_PASSWORD="$2";   shift 2 ;;
             --db-native)              DB_NATIVE=true;              shift 1 ;;
+            --db-host)                NATIVE_DB_HOST="$2";          shift 2 ;;
             --db-root-password)       DB_ROOT_PASSWORD="$2";       shift 2 ;;
             --create-dhparam)         CREATE_DHPARAM=true;         shift 1 ;;
             --enable-basic-auth)      ENABLE_BASIC_AUTH=true;      shift 1 ;;
@@ -424,6 +427,10 @@ parse_args() {
 
     [[ -z "$DOMAIN" ]]  && error "--domain is required"
     [[ -z "$DB_TYPE" ]] && error "--db-type is required"
+    if [[ -n "$NATIVE_DB_HOST" ]]; then
+        [[ "$DB_NATIVE" == true ]] || error "--db-host requires --db-native"
+        mooship_validate_db_host "$NATIVE_DB_HOST"
+    fi
 
     if [[ "$DB_TYPE" != "postgres" && "$DB_TYPE" != "mysql" ]]; then
         error "Database type must be 'postgres' or 'mysql', received: ${DB_TYPE}"
@@ -616,24 +623,54 @@ select_resource_profile() {
 # Keep manually specified ports; select the remaining ports from their ranges
 assign_ports() {
     info "Selecting free ports..."
+    local variable port db_variable
+    local -a variables=(PORT_HTTP PORT_HTTPS PORT_PHP PORT_REDIS)
+    if [[ "$DB_TYPE" == mysql ]]; then db_variable=PORT_MYSQL; else db_variable=PORT_POSTGRES; fi
+    variables+=("$db_variable")
+    if [[ "$DB_NATIVE" == true && -z "${!db_variable}" ]]; then
+        if [[ "$DB_TYPE" == mysql ]]; then PORT_MYSQL=3306; else PORT_POSTGRES=5432; fi
+    fi
+    # Validate every explicit input before probing or creating anything, even unused DB flags.
+    for variable in PORT_HTTP PORT_HTTPS PORT_PHP PORT_REDIS PORT_MYSQL PORT_POSTGRES; do
+        port="${!variable}"
+        [[ -n "$port" ]] || continue
+        mooship_validate_port "$port"
+        printf -v "$variable" '%s' "$((10#$port))"
+    done
+    MOOSHIP_ASSIGNED_PORTS=""
+    MOOSHIP_DOCKER_PORTS=$(docker ps --format '{{.Ports}}' 2>/dev/null || true)
+    for variable in "${variables[@]}"; do
+        port="${!variable}"
+        [[ -n "$port" ]] || continue
+        [[ "$port" != 80 && "$port" != 443 ]] || error "Port $port is reserved for the shared proxy"
+        [[ " $MOOSHIP_ASSIGNED_PORTS " != *" $port "* ]] || error "Duplicate service port: $port"
+        if [[ "$DB_NATIVE" != true || "$variable" != "$db_variable" ]]; then
+            mooship_port_available "$port" || error "Port $port is already in use"
+        fi
+        MOOSHIP_ASSIGNED_PORTS+=" $port"
+    done
 
     if [[ -z "$PORT_HTTP" ]]; then
         PORT_HTTP=$(find_free_port 8100 8400 "HTTP")
+        MOOSHIP_ASSIGNED_PORTS+=" $PORT_HTTP"
     fi
     info "  HTTP:       ${PORT_HTTP}"
 
     if [[ -z "$PORT_HTTPS" ]]; then
         PORT_HTTPS=$(find_free_port 4100 4300 "HTTPS")
+        MOOSHIP_ASSIGNED_PORTS+=" $PORT_HTTPS"
     fi
     info "  HTTPS:      ${PORT_HTTPS}"
 
     if [[ -z "$PORT_PHP" ]]; then
         PORT_PHP=$(find_free_port 9100 9600 "PHP-FPM")
+        MOOSHIP_ASSIGNED_PORTS+=" $PORT_PHP"
     fi
     info "  PHP-FPM:    ${PORT_PHP}"
 
     if [[ -z "$PORT_REDIS" ]]; then
         PORT_REDIS=$(find_free_port 6500 6800 "Redis")
+        MOOSHIP_ASSIGNED_PORTS+=" $PORT_REDIS"
     fi
     info "  Redis:      ${PORT_REDIS}"
 
@@ -754,11 +791,12 @@ configure_compose_db() {
         info "Configuring docker-compose.yml for database type ${DB_TYPE}..."
     fi
 
-    python3 - "$COMPOSE_FILE" "$SLUG" "$DB_TYPE" "$DB_NATIVE" <<'PYEOF'
+    python3 - "$COMPOSE_FILE" "$SLUG" "$DB_TYPE" "$DB_NATIVE" "${NATIVE_DB_HOST:-host.docker.internal}" <<'PYEOF'
 import re
 import sys
 
 path, slug, db_type, native = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == 'true'
+native_host = sys.argv[5]
 other = 'mysql' if db_type == 'postgres' else 'postgres'
 
 drop_services = {f'db_{other}'}
@@ -826,6 +864,13 @@ if native:
 # --- 3. Rename the selected database: db_postgres → db, <slug>_db_postgres → <slug>_db ---
 result = [re.sub(rf'\bdb_{db_type}\b', 'db', l.replace(f'{slug}_db_{db_type}', f'{slug}_db'))
           for l in result]
+if native and native_host == 'host.docker.internal':
+    mapped = []
+    for line in result:
+        mapped.append(line)
+        if re.match(r'^  (php|cron):\s*$', line):
+            mapped.extend(['    extra_hosts:', '      - "host.docker.internal:host-gateway"'])
+    result = mapped
 
 with open(path, 'w') as f:
     f.write('\n'.join(result) + '\n')
@@ -870,6 +915,9 @@ write_project_env() {
         fi
         echo ""
         echo "DB_NATIVE=${DB_NATIVE}"
+        if [[ "$DB_NATIVE" == true ]]; then
+            echo "DB_HOST=${NATIVE_DB_HOST:-host.docker.internal}"
+        fi
         echo "PHP_VERSION=${PHP_VERSION}"
         echo "MOODLE_VERSION=${MOODLE_VERSION}"
         echo ""
@@ -1338,15 +1386,13 @@ build_and_start_project() {
     ensure_project_docker_resources
 
     info "Running: docker compose up -d --build"
-    if ! docker compose up -d --build; then
+    if ! docker compose up -d --build php nginx redis certbot_renew; then
         error "Could not build/start the project. Check logs: cd ${PROJECT_DIR} && docker compose logs"
     fi
 
     info "The docker compose command completed successfully"
 
-    # Allow time for containers to start
-    info "Waiting for containers to start..."
-    sleep 10
+    info "Waiting for PHP-FPM, nginx, Redis, and the database to become ready..."
 
     info "Checking container status..."
     local RUNNING
@@ -1373,12 +1419,13 @@ build_and_start_project() {
     fi
 
     local SERVICE
-    for SERVICE in php nginx cron redis certbot_renew; do
-        [[ "$(docker inspect -f '{{.State.Running}}' "${SLUG}_${SERVICE}")" == true ]] ||
-            error "Service ${SERVICE} is not running"
+    for SERVICE in php nginx redis certbot_renew; do
+        mooship_wait_service "$SERVICE" || error "Service ${SERVICE} is not ready"
     done
     if [[ "$DB_NATIVE" != true ]]; then
         mooship_wait_database || error "The database is not ready"
+    else
+        mooship_check_database tcp || error "Native DB is unreachable; check --db-host, database listeners and firewall"
     fi
     cd "${SCRIPT_DIR}" || true
 }
@@ -1440,7 +1487,8 @@ install_moodle() {
     # Moodle 5.1+: web files moved to public/ (config.php, lib/, and admin/cli remain at the root)
     if [[ -f "${PROJECT_DIR}/public_html/public/version.php" ]]; then
         info "Moodle 5.1+: nginx document root → /var/www/html/public"
-        sed -i 's|^\(#\?\s*\)root /var/www/html;|\1root /var/www/html/public;|' "${PROJECT_DIR}/.config/nginx/_site.conf"
+        python3 "$SCRIPT_DIR/lib/web.py" --public-root "${PROJECT_DIR}/.config/nginx/_site.conf" ||
+            error "Could not select the Moodle public document root"
     fi
 
     success "Moodle ${MOODLE_VERSION} installed successfully!"
@@ -1475,7 +1523,7 @@ configure_moodle_config() {
     info "Creating config.php for Moodle..."
 
     local DB_TYPE_MOODLE=""
-    local DB_HOST=""
+    local DB_HOST_VALUE=""
     local DB_NAME=""
     local DB_USER=""
     local DB_PASS=""
@@ -1493,13 +1541,13 @@ configure_moodle_config() {
         DB_PASS="$DB_MYSQL_PASSWORD"
     fi
 
-    # Native database: Docker bridge IP and host port.
+    # Native database: container-reachable host address and host port.
     # Container database: container name and internal port (the external .env port does not listen inside the network)
     if [[ "$DB_NATIVE" == true ]]; then
-        DB_HOST="172.17.0.1"
+        DB_HOST_VALUE="${NATIVE_DB_HOST:-host.docker.internal}"
         if [[ "$DB_TYPE" == "postgres" ]]; then DB_PORT_VALUE="$PORT_POSTGRES"; else DB_PORT_VALUE="$PORT_MYSQL"; fi
     else
-        DB_HOST="${SLUG}_db"
+        DB_HOST_VALUE="${SLUG}_db"
         if [[ "$DB_TYPE" == "postgres" ]]; then DB_PORT_VALUE="5432"; else DB_PORT_VALUE="3306"; fi
     fi
 
@@ -1512,7 +1560,7 @@ global \$CFG;
 
 \$CFG->dbtype    = '${DB_TYPE_MOODLE}';
 \$CFG->dblibrary = 'native';
-\$CFG->dbhost    = '${DB_HOST}';
+\$CFG->dbhost    = '${DB_HOST_VALUE}';
 \$CFG->dbname    = '${DB_NAME}';
 \$CFG->dbuser    = '${DB_USER}';
 \$CFG->dbpass    = '${DB_PASS}';
@@ -1557,7 +1605,7 @@ EOF
         success "config.php created successfully!"
         info "Database settings saved in ${MOODLE_CONFIG}:"
         info "  DB_TYPE: ${DB_TYPE_MOODLE}"
-        info "  DB_HOST: ${DB_HOST}"
+        info "  DB_HOST: ${DB_HOST_VALUE}"
         info "  DB_PORT: ${DB_PORT_VALUE}"
         info "  DB_NAME: ${DB_NAME}"
         info "  DB_USER: ${DB_USER}"
@@ -1579,14 +1627,14 @@ install_moodle_database() {
     info "Checking whether Moodle is installed..."
     cd "${PROJECT_DIR}" || error "Could not change to directory ${PROJECT_DIR}"
 
-    local CHECK_OUTPUT
-    CHECK_OUTPUT=$(docker compose exec -T php php /var/www/html/admin/cli/install_database.php --help 2>&1 || true)
-
-    if echo "$CHECK_OUTPUT" | grep -q "Moodle.*already.*installed"; then
+    local CHECK_STATUS=0
+    mooship_check_database installed || CHECK_STATUS=$?
+    if [[ "$CHECK_STATUS" == 0 ]]; then
         info "Moodle is already installed, skipping database installation"
         cd "${SCRIPT_DIR}" || true
         return
     fi
+    [[ "$CHECK_STATUS" == 3 ]] || error "Could not verify the Moodle installation state"
 
     info "Starting automatic Moodle installation through CLI..."
     info "This may take several minutes..."
@@ -1980,12 +2028,16 @@ main() {
     create_dhparam
     create_project
     comment_ssl_blocks
-    create_native_database
     build_and_start_project
+    create_native_database
+    (cd "$PROJECT_DIR" && mooship_check_database connect) || error "PHP cannot authenticate to the selected database"
     install_moodle
+    install_moodle_dependencies
     configure_moodle_config
+    reload_project_nginx
     install_moodle_database
     configure_moodle_mail
+    start_moodle_cron
     # Publish upstreams only after the application and its Docker network exist.
     update_proxy_nginx_conf
     update_proxy_docker_compose

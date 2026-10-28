@@ -12,6 +12,8 @@ After every task with file changes, briefly record what changed and why: feature
 
 - 2026-10-15: synchronized the public Mooship skill, context, wiki, and local continuity profile with the separate standalone runtime contract, its tests, storage requirements, and publication limits.
 
+- 2026-10-15: synchronized preflight implementation pointers and verification boundaries in the public skill/context/wiki and local continuity profile while preserving the separate uncommitted image work.
+
 - 2026-10-15: synchronized public context/wiki availability and clean-checkout documentation validation in the project skill, local registry, and continuity profile; optional AI-KIT paths are described without requiring unpublished resources.
 - 2026-10-15: recorded the tested database branch/migration contract in the public skill and synchronized the reproduced CI failure, successful Compose/database/regression checks, and remaining deployment limits in local context.
 - 2026-10-15: added a portable local `SKILL.md` for Mooship development and operations, replaced stale Claude instructions with an adapter to the same guide, and synchronized discovery, documentation, and context. Preserved ignore rules and avoided global installation.
@@ -46,6 +48,18 @@ After every task with file changes, briefly record what changed and why: feature
 - 2026-10-15: implemented host port preflight, configurable native DB routing, PHP-side connectivity/state probes and bounded service readiness on the separate `codex/deployment-preflight-readiness` branch (draft PR #6), preserving the uncommitted image work in this checkout. Added regression/native-routing tests and expanded full E2E; branch documentation records rollout and archive compatibility.
 
 - 2026-10-15: added buildable Moodle 4.5.15/PHP 8.3 and matching nginx images for later Docker Hub publication, with pinned source/base digests, non-root execution, immutable code, file secrets, explicit locked installation/cron, DB-aware readiness, process liveness, and graceful shutdown. Added PostgreSQL/MySQL Compose overlays, minimal Kubernetes manifests, operational/publishing documentation and ADR-0004. Added real Moodle image integration tests and a build/test-only CI workflow; expanded Dockerfile/YAML linting and Dependabot discovery. Added LF rules for portable Linux entrypoints. Existing host deployment scripts remain independent.
+
+- 2026-10-15: install locked production dependencies when Moodle declares league/oauth2-server, fixing the verified missing ScopeTrait fatal error on fresh Moodle 5.3 API requests. Run Composer as the PHP container user with a pinned, SHA-256-verified PHAR, without developer packages, scripts or plugins, and verify the required trait before Moodle initialization.
+
+- 2026-10-15: route removed PHP script paths through Moodle's router while preserving FastCGI slash arguments, original URLs and query parameters. Added real HTTP/HTTPS regressions and E2E assertions for both Moodle 5.3 shim redirects; a missing router returns 404 rather than looping.
+
+- 2026-10-15: resolve the synthetic E2E site domain inside PHP through a dedicated internal Docker network alias, allowing Moodle 5.3 router self-checks to reach the shared proxy. Added explicit routed HTTP status checks and detailed router diagnostics without weakening doctor.
+
+- 2026-10-15: preserve the inode when selecting Moodle's public document root so the running nginx file bind mount sees the change before reload. Exercise the actual updater with a single-file mount and verify inode/protocol preservation; the second full E2E exposed the stale mount missed by a directory-mounted fixture.
+
+- 2026-10-15: full E2E exposed stale running nginx configuration after Moodle 5.1+ switches to the public/ document root. Validate/reload nginx after generating Moodle configuration, add a real HTTP regression, and wait for services resumed by backup before E2E doctor checks instead of treating transient starting health as a permanent failure.
+
+- 2026-10-15: validate all explicit deployment ports before side effects, reject duplicates/occupied ports and shared proxy reservations, and exclude selected ports from automatic allocation. Added configurable native DB routing with host-gateway mapping and real PHP-side connectivity/authentication checks. Replaced fixed startup sleep with bounded PHP/nginx/Redis health checks, deferred cron until installation, and replaced installer-help parsing with structured DB state checks. Added regressions and disposable host-gateway DB checks to full E2E; preserve native endpoints in restored archives.
 
 - 2026-10-15: fixed published context/wiki links to unavailable local AI-KIT resources. Documentation validation now checks targets against the Git file inventory, preventing local ignored files from masking broken links; added regressions for ignored files/directories, pending public files, tracked ignored documents, and command failure.
 - 2026-10-15: restored MySQL 8.4 LTS and PostgreSQL 17 in the new-project template after Dependabot branch upgrades broke the Compose contract. Restricted automated database branch changes and added PostgreSQL image/data-mount assertions; documented that existing deployments need a separate migration rather than an image downgrade.
