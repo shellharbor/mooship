@@ -1,0 +1,89 @@
+name: mooship
+
+x-runtime: &runtime
+  image: ${MOOSHIP_APP_IMAGE:-shellharbor/mooship:dev-moodle4.5.15-php8.3}
+  build:
+    context: ..
+    target: app
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs:
+    - /tmp:uid=1000,gid=1000,mode=1770
+  volumes:
+    - moodledata:/var/moodledata
+  environment: &environment
+    MOODLE_DB_TYPE: ${MOODLE_DB_TYPE:-pgsql}
+    MOODLE_DB_HOST: db
+    MOODLE_DB_NAME: moodle
+    MOODLE_DB_USER: moodle
+    MOODLE_DB_PASSWORD_FILE: /run/secrets/db_password
+    MOODLE_WWWROOT: ${MOODLE_WWWROOT:-http://localhost:8080}
+    MOODLE_REVERSE_PROXY: ${MOODLE_REVERSE_PROXY:-false}
+    MOODLE_SSL_PROXY: ${MOODLE_SSL_PROXY:-false}
+  secrets: [db_password]
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *runtime
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+  cron:
+    <<: *runtime
+    command: [cron]
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck:
+      disable: true
+
+  install:
+    <<: *runtime
+    profiles: [init]
+    command: [install]
+    restart: 'no'
+    environment:
+      <<: *environment
+      MOODLE_AGREE_LICENSE: 'true'
+      MOODLE_ADMIN_USER: ${MOODLE_ADMIN_USER:-admin}
+      MOODLE_ADMIN_EMAIL: ${MOODLE_ADMIN_EMAIL:?Set MOODLE_ADMIN_EMAIL}
+      MOODLE_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      MOODLE_SITE_FULLNAME: ${MOODLE_SITE_FULLNAME:-Mooship Moodle}
+      MOODLE_SITE_SHORTNAME: ${MOODLE_SITE_SHORTNAME:-Mooship}
+    secrets: [db_password, admin_password]
+    healthcheck:
+      disable: true
+
+  web:
+    image: ${MOOSHIP_WEB_IMAGE:-shellharbor/mooship:dev-moodle4.5.15-nginx}
+    build:
+      context: ..
+      target: web
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 60s
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=1770
+    volumes:
+      - moodledata:/var/moodledata:ro
+    environment:
+      MOOSHIP_FPM_UPSTREAM: app:9000
+    ports:
+      - '${MOOSHIP_BIND_ADDRESS:-127.0.0.1}:${MOOSHIP_HTTP_PORT:-8080}:8080'
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  moodledata:
+
+secrets:
+  db_password:
+    file: ../.secrets/db_password
+  admin_password:
+    file: ../.secrets/admin_password

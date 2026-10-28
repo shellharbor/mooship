@@ -9,6 +9,7 @@ Mooship separates fast regression checks, component tests, and full Moodle deplo
 | [CI](../.github/workflows/ci.yml) | Bash syntax and ShellCheck including examples; Ruff; YAML syntax/duplicate keys; actionlint; zizmor; Python regression matrix; branch coverage | Push to `main`, PR, manual |
 | [Configuration](../.github/workflows/configuration.yml) | Raw Compose YAML/image references for Dependabot; generated PostgreSQL/MySQL Compose files with native/container databases; proxy lifecycle states; all PHP/nginx Dockerfiles with Hadolint | Push to `main`, PR, manual |
 | [Component integration](../.github/workflows/integration.yml) | Separate PostgreSQL 17, MySQL 8.4, HTTP/HTTPS, and proxy lifecycle jobs | Push to `main`, PR, manual |
+| [Moodle images](../.github/workflows/image.yml) | Build PHP/nginx images, validate runtime Compose, install real Moodle on both DBs, check HTTP/secrets/health/shutdown | Push to `main`, PR, manual |
 | [Security](../.github/workflows/security.yml) | Bandit on Python helpers; Gitleaks on repository files and Git history, with redacted output | Push to `main`, PR, Wednesday, manual |
 | [CodeQL](../.github/workflows/codeql.yml) | Python and GitHub Actions security analysis | Push to `main`, PR, Wednesday, manual |
 | [Dependency review](../.github/workflows/dependency-review.yml) | Reject newly introduced high/critical dependency vulnerabilities reported by GitHub | PR |
@@ -18,6 +19,8 @@ Mooship separates fast regression checks, component tests, and full Moodle deplo
 The regression matrix uses Python 3.8, 3.12, and 3.14 on Ubuntu 24.04, plus Python 3.12 on Ubuntu 22.04. Python 3.8 verifies the existing minimum runtime contract; development tools run on Python 3.12. These jobs exercise synthetic data without installing Moodle.
 
 ## Coverage
+
+The [Python package workflow](../.github/workflows/python-package.yml) checks CLI behavior, wheel/sdist metadata, wheel rebuilds from the sdist, safe native archive extraction and installed commands on Python 3.8/3.12/3.14. The [Release workflow](../.github/workflows/release.yml) requires successful exact-commit checks and matching tag/VERSION before uploading native assets or optionally publishing checked images and distributions. See [release configuration](RELEASING.md).
 
 [`.coveragerc`](../.coveragerc) measures statement and branch coverage of `lib/`, including Python child processes launched through Bash. The gate requires at least 90% combined coverage. The locally verified starting level is 92%; coverage does not measure Bash or Moodle/PHP code. The workflow stores `coverage.xml` as an artifact for 14 days.
 
@@ -31,7 +34,7 @@ The runtime uses Python's standard library. CI packages are installed separately
 
 CodeQL analyzes Python and workflow code. Bash is checked by ShellCheck and behavioral tests. Only CodeQL jobs request `security-events: write`; PR dependency review does not post comments. The public repository supports these GitHub features; local validation cannot confirm their server-side configuration or successful runs.
 
-Hadolint errors fail CI. Existing package pinning and `apt` style warnings remain visible until the legacy Dockerfiles are improved. [Bandit configuration](../.github/bandit.yml) suppresses subprocess import/argument-list warnings for the fixed, shell-free repository inspection command; shell execution checks remain active. [Gitleaks configuration](../.gitleaks.toml) excludes local tool/report directories and exactly matches the deterministic database fixture passwords in their test file. Other findings fail CI.
+Hadolint errors fail CI. Package pinning and shell/`apt` style warnings remain visible. [Bandit configuration](../.github/bandit.yml) suppresses subprocess import/argument-list warnings for the fixed, shell-free repository inspection command; shell execution checks remain active. [Gitleaks configuration](../.gitleaks.toml) excludes local tool/report directories and exactly matches the deterministic database fixture passwords in their test file. Other findings fail CI.
 
 Secret scanning explicitly trusts only the mounted checkout and checks that Git can read a nonempty history before scanning all refs. This prevents a runner/container ownership mismatch from producing a misleading successful scan of zero commits.
 
@@ -46,7 +49,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r .github/requirements.txt
 python -m ruff check lib tests .github/scripts
-python -m yamllint .github
+python -m yamllint .github docker deploy/k8s
 zizmor --offline --strict-collection .github
 python -m bandit -r lib .github/scripts -c .github/bandit.yml
 python -B .github/scripts/check_docs.py

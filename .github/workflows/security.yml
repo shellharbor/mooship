@@ -30,7 +30,7 @@ jobs:
       - name: Install pinned CI tools
         run: python -m pip install -r .github/requirements.txt
       - name: Bandit
-        run: python -m bandit -r lib .github/scripts -c .github/bandit.yml
+        run: python -m bandit -r lib src .github/scripts -c .github/bandit.yml
 
   secrets:
     name: Secrets in files and Git history

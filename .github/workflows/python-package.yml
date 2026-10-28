@@ -1,0 +1,64 @@
+name: Python package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-python-build.txt
+      - run: python -B -m unittest discover -s tests -p test_python_cli.py -v
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - name: Rebuild wheel from source distribution
+        run: python -m pip wheel --no-deps --wheel-dir rebuilt dist/*.tar.gz
+      - name: Verify the native toolkit archive
+        run: |
+          python .github/scripts/build_release.py native
+          PYTHONPATH=src python -c 'from pathlib import Path; from tempfile import TemporaryDirectory; from mooship.install import unpack_release, verify_checksum; from mooship import __version__; a = next(Path("native").glob("*.tar.gz")); verify_checksum(a, a.with_name(a.name + ".sha256"), a.name); t = TemporaryDirectory(); unpack_release(a, Path(t.name) / "unpacked", __version__); t.cleanup()'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: python-distributions
+          path: rebuilt/*.whl
+          if-no-files-found: error
+          retention-days: 7
+
+  install:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python: ['3.8', '3.12', '3.14']
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: python-distributions
+          path: dist/
+      - run: python -m pip install --no-deps dist/*.whl
+      - run: |
+          mooship --version
+          mooship --help
+          mooship install --directory "$RUNNER_TEMP/mooship-preview" --dry-run
+          python -m mooship --version

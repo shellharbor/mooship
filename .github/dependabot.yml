@@ -16,6 +16,20 @@ updates:
       prefix: ci
 
   - package-ecosystem: pip
+    directory: /
+    cooldown:
+      default-days: 7
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      package-build-tools:
+        patterns: ['*']
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: pip
     directory: /.github
     cooldown:
       default-days: 7
@@ -31,6 +45,7 @@ updates:
 
   - package-ecosystem: docker
     directories:
+      - /
       - /moodle/.docker/php
       - /moodle/.docker/nginx
       - /nginxproxy
@@ -48,7 +63,9 @@ updates:
       prefix: build
 
   - package-ecosystem: docker-compose
-    directory: /moodle
+    directories:
+      - /moodle
+      - /docker
     # Database branch changes require coordinated migration and restore checks.
     ignore:
       - dependency-name: mysql

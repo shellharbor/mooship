@@ -1,0 +1,14 @@
+# Only container runtime sources belong in the build context.
+**
+!Dockerfile
+!LICENSE
+!docker/
+!docker/*.php
+!docker/*.sh
+!docker/php-fpm.conf
+!docker/nginx.conf.template
+!docker/health.txt
+!moodle/
+!moodle/.config/
+!moodle/.config/php/
+!moodle/.config/php/mooship.ini

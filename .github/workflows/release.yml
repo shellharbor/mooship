@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag matching VERSION (vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.release.outputs.commit }}
+      version: ${{ steps.release.outputs.version }}
+      moodle: ${{ steps.release.outputs.moodle }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+          persist-credentials: false
+      - name: Verify tag, version and exact-commit CI
+        id: release
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/check_release.py
+
+  distributions:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-python-build.txt
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - run: python .github/scripts/build_release.py native
+      - name: Publish verified native assets without overwriting existing files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: python .github/scripts/publish_assets.py native
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-python-distributions
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  pypi:
+    needs: distributions
+    if: vars.PYPI_PUBLISH == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/mooship/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: release-python-distributions
+          path: dist/
+      - name: Publish through PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3
+        with:
+          skip-existing: true
+
+  dockerhub:
+    needs: [verify, distributions]
+    if: vars.DOCKERHUB_PUBLISH == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+      REVISION: ${{ needs.verify.outputs.commit }}
+      MOODLE_VERSION: ${{ needs.verify.outputs.moodle }}
+      IMAGE: shellharbor/mooship
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
+          persist-credentials: false
+      - name: Build the exact release pair
+        run: |
+          docker build --platform linux/amd64 --target app --build-arg "MOOSHIP_VERSION=$VERSION" --build-arg "VCS_REF=$REVISION" -t "$IMAGE:$VERSION-moodle$MOODLE_VERSION-php8.3" .
+          docker build --platform linux/amd64 --target web --build-arg "MOOSHIP_VERSION=$VERSION" --build-arg "VCS_REF=$REVISION" -t "$IMAGE:$VERSION-moodle$MOODLE_VERSION-nginx" .
+      - name: Test both database installations before publication
+        run: |
+          docker pull postgres:17-alpine
+          docker pull mysql:8.4
+          MOOSHIP_APP_IMAGE="$IMAGE:$VERSION-moodle$MOODLE_VERSION-php8.3" \
+          MOOSHIP_WEB_IMAGE="$IMAGE:$VERSION-moodle$MOODLE_VERSION-nginx" \
+          MOOSHIP_IMAGE_TESTS=1 PYTHONPATH=tests python3 -B -m unittest test_runtime_image -v
+      - name: Sign in and publish the tested images
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$DOCKERHUB_USERNAME" && test -n "$DOCKERHUB_TOKEN"
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          docker push "$IMAGE:$VERSION-moodle$MOODLE_VERSION-php8.3"
+          docker push "$IMAGE:$VERSION-moodle$MOODLE_VERSION-nginx"
+          docker image inspect --format '{{join .RepoDigests "\n"}}' "$IMAGE:$VERSION-moodle$MOODLE_VERSION-php8.3" "$IMAGE:$VERSION-moodle$MOODLE_VERSION-nginx" >> "$GITHUB_STEP_SUMMARY"

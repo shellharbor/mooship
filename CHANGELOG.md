@@ -6,6 +6,12 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### AI-KIT
 
+- 2026-10-15: require image impact assessment for behavior, dependency and configuration changes, synchronized runtime/build assets, and affected image rebuilds with relevant tests. Added a verified build-input map and reporting rules to the runtime guide and synchronized public/local AI instructions so host and standalone changes are assessed together without unnecessary rebuilds or implied publication.
+
+- 2026-10-15: synchronized the isolated host-preflight branch/PR, local verification evidence, E2E run identity and separate Dependency Graph limitation in project context, navigation and the local continuity profile without merging the earlier image work.
+
+- 2026-10-15: synchronized the public Mooship skill, context, wiki, and local continuity profile with the separate standalone runtime contract, its tests, storage requirements, and publication limits.
+
 - 2026-10-15: synchronized public context/wiki availability and clean-checkout documentation validation in the project skill, local registry, and continuity profile; optional AI-KIT paths are described without requiring unpublished resources.
 - 2026-10-15: recorded the tested database branch/migration contract in the public skill and synchronized the reproduced CI failure, successful Compose/database/regression checks, and remaining deployment limits in local context.
 - 2026-10-15: added a portable local `SKILL.md` for Mooship development and operations, replaced stale Claude instructions with an adapter to the same guide, and synchronized discovery, documentation, and context. Preserved ignore rules and avoided global installation.
@@ -32,6 +38,14 @@ After every task with file changes, briefly record what changed and why: feature
 - 2026-10-04: extended the English language requirement to all authored project content and agent communication, including code, UI text, logs, Git messages, reviews, and reports, so future project work follows one language policy.
 
 ### Project
+
+- 2026-10-28: prepared Mooship 1.2.0 distribution: a dependency-free Python CLI modeled on LaraShip, exact-release HTTPS/checksum/archive validation, native command forwarding, reproducible toolkit assets, wheel/sdist checks, Python compatibility CI, and gated Docker Hub/PyPI release workflows. Extended lint/security/dependency checks to the Python package and documented account setup and publication evidence. Existing application images remain separate from host administration.
+
+- 2026-10-15: verified the host preflight implementation in GitHub E2E run 38787890321 at ff1fbf2: all four Moodle 4.5/5.3 and PostgreSQL/MySQL cases passed, including router/API/shims, SMTP, cron, backups, systemd schedules and doctor. Local validation passed 108 regressions (120 discovered, 12 opt-in skipped), both real host-gateway DB probes, HTTP/HTTPS and Compose/proxy checks. Dependency Review remains separately blocked by disabled repository Dependency Graph.
+
+- 2026-10-15: implemented host port preflight, configurable native DB routing, PHP-side connectivity/state probes and bounded service readiness on the separate `codex/deployment-preflight-readiness` branch (draft PR #6), preserving the uncommitted image work in this checkout. Added regression/native-routing tests and expanded full E2E; branch documentation records rollout and archive compatibility.
+
+- 2026-10-15: added buildable Moodle 4.5.15/PHP 8.3 and matching nginx images for later Docker Hub publication, with pinned source/base digests, non-root execution, immutable code, file secrets, explicit locked installation/cron, DB-aware readiness, process liveness, and graceful shutdown. Added PostgreSQL/MySQL Compose overlays, minimal Kubernetes manifests, operational/publishing documentation and ADR-0004. Added real Moodle image integration tests and a build/test-only CI workflow; expanded Dockerfile/YAML linting and Dependabot discovery. Added LF rules for portable Linux entrypoints. Existing host deployment scripts remain independent.
 
 - 2026-10-15: fixed published context/wiki links to unavailable local AI-KIT resources. Documentation validation now checks targets against the Git file inventory, preventing local ignored files from masking broken links; added regressions for ignored files/directories, pending public files, tracked ignored documents, and command failure.
 - 2026-10-15: restored MySQL 8.4 LTS and PostgreSQL 17 in the new-project template after Dependabot branch upgrades broke the Compose contract. Restricted automated database branch changes and added PostgreSQL image/data-mount assertions; documented that existing deployments need a separate migration rather than an image downgrade.

@@ -1,0 +1,49 @@
+# Run explicitly against an empty database before starting the Deployment.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mooship-install
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: install
+          image: shellharbor/mooship:dev-moodle4.5.15-php8.3
+          args: [install]
+          envFrom:
+            - configMapRef: {name: mooship}
+          env:
+            - {name: MOODLE_AGREE_LICENSE, value: 'true'}
+            - {name: MOODLE_ADMIN_EMAIL, value: admin@example.org}
+            - {name: MOODLE_ADMIN_PASSWORD_FILE, value: /run/secrets/admin/password}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: '2', memory: 2Gi}
+          volumeMounts:
+            - {name: data, mountPath: /var/moodledata}
+            - {name: tmp, mountPath: /tmp}
+            - {name: db-secret, mountPath: /run/secrets/db, readOnly: true}
+            - {name: admin-secret, mountPath: /run/secrets/admin, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: mooship-data}
+        - name: tmp
+          emptyDir: {}
+        - name: db-secret
+          secret: {secretName: mooship-db}
+        - name: admin-secret
+          secret: {secretName: mooship-admin}

@@ -56,10 +56,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - name: Check every PHP and nginx Dockerfile
+      - name: Check every Dockerfile
         # Existing package-version/apt style warnings remain visible; errors fail the job.
         run: |
           while IFS= read -r -d '' file; do
             echo "Checking $file"
             docker run --rm --read-only --network none -i hadolint/hadolint:v2.15.1 hadolint --failure-threshold error - < "$file"
-          done < <(find moodle/.docker nginxproxy -name '*.Dockerfile' -print0)
+          done < <(git ls-files -z '*Dockerfile')

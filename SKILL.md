@@ -1,11 +1,11 @@
 ---
 name: mooship
-description: Develop, review, test, and operate Mooship, the Bash and Python toolkit for deploying Moodle on Ubuntu with Docker Compose. Use for this repository's deployment scripts, templates, site lifecycle, backup and restore, diagnostics, and CI; not for general Moodle plugin development.
+description: Develop, review, test, and operate Mooship's Moodle deployment toolkit and standalone runtime images. Use for its scripts, templates, container builds, site lifecycle, backup and restore, diagnostics, and CI; not for general Moodle plugin development.
 ---
 
 # Mooship
 
-Work on `shellharbor/mooship`. This is a deployment toolkit, not a Moodle core checkout: Moodle source is downloaded during deployment. Runtime Python helpers use Python 3.8+ and the standard library. Server operations target Ubuntu 20.04+ with root privileges, Docker Engine, and the Compose plugin.
+Work on `shellharbor/mooship`. The host installer downloads Moodle during deployment; the separate root Dockerfile downloads pinned Moodle during build and bakes it into portable PHP/nginx images. There is no vendored Moodle core checkout. Runtime Python helpers use Python 3.8+ and the standard library. Host installer operations target Ubuntu 20.04+ with root privileges, Docker Engine, and the Compose plugin.
 
 Resolve paths below against the Mooship repository root, even if this skill is loaded from another location. Keep the checkout available; this file is a guide to the project, not a replacement for its scripts and templates. A root `SKILL.md` can be supplied directly to another AI; automatic discovery depends on that AI's integration.
 
@@ -30,17 +30,29 @@ Resolve paths below against the Mooship repository root, even if this skill is l
 | HTTP configuration | `lib/web.py`, `moodle/.config/nginx/_site.conf`, `nginxproxy/site-template.conf` |
 | Proxy lifecycle edits | `lib/proxy.py`, exercised by `tests/test_proxy_lifecycle.py` |
 | Project templates | `moodle/docker-compose.yml`, `moodle/.docker/`, `moodle/.config/php/` |
+| Standalone images | Root `Dockerfile`, `docker/`, `deploy/k8s/`, `docs/DOCKER.md`, `tests/test_runtime_image.py`, `.github/workflows/image.yml` |
+| Python CLI and releases | `src/mooship/`, `pyproject.toml`, `VERSION`, `docs/PYTHON.md`, `docs/RELEASING.md`, `.github/workflows/python-package.yml`, `.github/workflows/release.yml` |
 | Shared proxy template | `nginxproxy/`; deployed separately under `/var/www/nginxproxy` |
 | Validation | `tests/`, `.github/scripts/`, `.github/workflows/`, `.github/requirements.txt`, `.coveragerc` |
 
 Prefer existing shared helpers over new inline parsers. When editing generated configuration, check both the template and every script that transforms it. A template change does not automatically update an already deployed site or an existing proxy's copied template.
 
+## Assess image impact
+
+- Before changing behavior, dependencies, or configuration, follow [the image update procedure](docs/DOCKER.md#keeping-images-in-sync). Trace the actual build inputs and assess both host installation and standalone runtime behavior; their source layouts and supported versions differ.
+- If affected, synchronize image sources/build definitions, runtime configuration, manifests, tests and documentation in the same task. Rebuild affected `app`/`web` targets and run relevant runtime tests; shared Moodle source or plugins require matching changes in both images. An already copied source needs no cosmetic Dockerfile edit. Host-only or documentation changes need no rebuild when verified to have no image impact.
+- Report the impact, affected targets, builds and tests actually run, and any unavailable checks. Source changes, local image builds, registry publication and deployment are separate outcomes; publication/deployment stay within the user's authorized scope.
+
 ## Preserve operational contracts
+
+- **Python distribution:** follow [the CLI guide](docs/PYTHON.md). Package installation does not deploy or install Docker. Native toolkit installation requires an exact official release, checksum and safe archive validation, a new destination and matching VERSION. Existing scripts retain their permissions, prompts, signals and exit codes. Application images are not a Docker-controller backend. Release publication requires matching VERSION/tag and successful exact-commit checks; report actual registry evidence separately.
+
+- **Standalone images:** consult [the runtime guide](docs/DOCKER.md). Preserve the matching pinned source in PHP/nginx targets, non-root UID/GID 1000, immutable code and external data/config/secrets. Installation and upgrades stay explicit; process liveness is independent of DB readiness. Host installer lifecycle/backup utilities do not manage this stack. Image tests opt in with `MOOSHIP_IMAGE_TESTS=1`; build both tags and pull the documented DB images first. A local build is not Docker Hub publication or a verified Kubernetes deployment.
 
 - **New installations:** reject occupied project directories and leftover resources. `nginxproxy` is a reserved slug. Keep resolved paths under `/var/www`, reject project-directory symlinks, and match slugs exactly: an operation on `lms` must not affect `lms2`.
 - **Native databases:** do not reuse existing databases/users or drop them based only on a name. Removal requires a matching `.mooship-native-database` ownership marker. Failed creation or an older project without that marker does not establish ownership.
 - **Database branches:** keep templates and integration checks on the tested branches documented in `docs/CI.md`. A branch change requires coordinated data-volume, migration, and backup/restore validation. Updating a template never authorizes downgrading an existing project's database files.
-- **Secrets:** preserve `umask 077`, mode `600` for `.env`, `config.php`, and archives, and localhost-only database, Redis, and PHP-FPM publications. Use the existing environment parser rather than executing `.env` as shell code. Never print credentials or private certificate material in reports; endpoints receiving secrets require HTTPS.
+- **Host installer secrets:** preserve `umask 077`, mode `600` for `.env`, `config.php`, and archives, and localhost-only database, Redis, and PHP-FPM publications. Use the existing environment parser rather than executing `.env` as shell code. The standalone image's baked `config.php` contains no secrets; mounted secret files must be readable by UID 1000. Never print credentials or private certificate material in reports; endpoints receiving secrets require HTTPS.
 - **Shared proxy:** other sites depend on `/var/www/nginxproxy`. Use `lib/proxy.py` for lifecycle edits; it targets Mooship's generated configuration format, not arbitrary YAML. Preserve neighboring entries, comments, disabled declarations, and valid empty collections. Deactivation must apply Compose changes so the site's network and certificate volume detach.
 - **Routing:** preserve per-request Docker DNS resolution of project upstreams so a stopped site cannot prevent proxy startup. Trust the client-address entry appended by the shared proxy. Keep ACME reachable when Basic Auth is enabled, and retain Moodle routing/X-Sendfile behavior, including the `public/` layout for Moodle 5.1+.
 - **Protocol:** HTTPS is the default. `--no-ssl` must configure HTTP consistently through both nginx layers and Moodle's `wwwroot`. Persist `SITE_SCHEME`; restore older archives without it as HTTPS. Redeploying an occupied slug is not an HTTP-to-HTTPS migration or a Moodle upgrade.
