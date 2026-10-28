@@ -41,6 +41,7 @@ SLUG=test
         (self.project / "moodledata").mkdir()
         (self.project / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
         (self.project / "public_html" / "config.php").write_text("<?php\n", encoding="utf-8")
+        (self.project / "public_html/version.php").write_text("<?php\n$release = '4.5 (Build: 20241007)';\n", encoding="utf-8")
         (self.project / "moodledata" / "course.txt").write_text("course content", encoding="utf-8")
         (self.project / ".env").write_text(
             "SITE_HOST=test.example\nDB_NATIVE=false\nDB_POSTGRES_NAME=test\n"
@@ -365,6 +366,8 @@ docker compose --project-directory "$PROJECT_DIR" -f "$PROJECT_DIR/docker-compos
                                       [volume["target"] for volume in services["db"]["volumes"]])
                         self.assertIn("shared_buffers=512MB", services["db"]["command"])
                     self.assertEqual(services["php"]["environment"]["PHP_FPM_MAX_CHILDREN"], "16")
+                    self.assertNotIn("entrypoint", services["cron"])
+                    self.assertIn("cron.php", " ".join(services["cron"]["command"]))
                     self.assertIn("redis", services["php"]["depends_on"])
                     for service in ("php", "redis", "db"):
                         if service in services:
@@ -426,8 +429,10 @@ backup_project test "$TEST_DIR/site.tar.gz"
         self.assertEqual(archive.read_bytes(), b"retained")
         self.assertEqual((self.project / "moodledata/course.txt").read_text(), "course content")
 
-    def restore_protocol(self, scheme):
+    def restore_protocol(self, scheme, php_runtime="8.3.36", moodle="4.5.0"):
         self.fixture()
+        env_file = self.project / ".env"
+        env_file.write_text(env_file.read_text().replace("MOODLE_VERSION=4.5.0", "MOODLE_VERSION=" + moodle))
         with (self.project / ".env").open("a", encoding="utf-8") as stream:
             stream.write("DB_PORT=5432\nDB_POSTGRES_USER=testuser\nDB_POSTGRES_PASSWORD=Synthetic_Pg\n")
             if scheme is not None:
@@ -451,13 +456,39 @@ backup_project test "$TEST_DIR/site.tar.gz"
         return self.bash('''
 check_root() { :; }; mooship_require_docker() { :; }; mooship_require_unused_resources() { :; }
 mooship_wait_database() { :; }
-create_native_database() { :; }; restore_database() { :; }; restart_nginxproxy() { :; }
+create_native_database() { echo DATABASE_CREATED; }; restore_database() { echo DATABASE_IMPORTED; }; restart_nginxproxy() { :; }
 ensure_project_docker_resources() { cd "$PROJECT_DIR"; }
 build_and_start_project() { printf 'MODE=%s\\n' "$(site_scheme)"; }
 start_moodle_cron() { :; }
-docker() { printf '%s\\n' "$*" >> "$TEST_DIR/docker.log"; }
+docker() {
+  printf '%s\\n' "$*" >> "$TEST_DIR/docker.log"
+  if [[ "$*" == 'compose run --rm -T --no-deps --entrypoint php php -r echo PHP_VERSION;' ]]; then
+    printf '8.3.36'
+  fi
+}
 restore_main --slug test --archive "$TEST_DIR/site.tar.gz" <<< test
-''', source="restore.sh")
+'''.replace("printf '8.3.36'", "printf '" + php_runtime + "'"), source="restore.sh")
+
+    def test_restore_rejects_old_actual_php_before_import_or_database_startup(self):
+        result = self.restore_protocol("http", php_runtime="8.3.35")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("PHP 8.3.35 is prohibited", result.stderr)
+        self.assertNotIn("DATABASE_IMPORTED", result.stdout)
+        self.assertNotIn("compose up -d", (self.directory / "docker.log").read_text())
+
+    def test_restore_rejects_source_metadata_mismatch_before_import_or_project_creation(self):
+        result = self.restore_protocol("http", moodle="5.3.0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("source/metadata mismatch", result.stderr)
+        self.assertNotIn("DATABASE_IMPORTED", result.stdout)
+        self.assertFalse(self.project.exists())
+
+    def test_restore_rejects_old_moodle_before_project_or_database_creation(self):
+        result = self.restore_protocol("http", moodle="4.2.99")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Moodle below 4.3", result.stderr)
+        self.assertNotIn("DATABASE_CREATED", result.stdout)
+        self.assertFalse(self.project.exists())
 
     def test_restore_preserves_http_without_requiring_a_certificate(self):
         result = self.restore_protocol("http")

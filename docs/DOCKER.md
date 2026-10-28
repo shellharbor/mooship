@@ -2,15 +2,17 @@
 
 The root Dockerfile builds a Moodle 4.5.15/PHP 8.3 runtime and a matching nginx companion published as `shellharbor/mooship`. PostgreSQL 17 or MySQL 8.4 runs separately. The existing host installer is an independent deployment option. These application images do not manage Docker or host directories.
 
-The published 1.2.0 pair is `1.2.0-moodle4.5.15-php8.3` and `1.2.0-moodle4.5.15-nginx-r1`. Use the corrected `nginx-r1` companion: the original nginx tag contains a Windows CRLF health response that fails Docker's health check. The `dev-*` tags below identify local source builds. Runtime verification covers Linux amd64; other architectures require their own build and installation checks.
+The published 1.2.0 pair predates the [mandatory PHP security baseline](RUNTIME_POLICY.md) and must be replaced for new installations. It is `1.2.0-moodle4.5.15-php8.3` and `1.2.0-moodle4.5.15-nginx-r1`. Use the corrected `nginx-r1` companion: the original nginx tag contains a Windows CRLF health response that fails Docker's health check. The `dev-*` tags below identify local source builds. Runtime verification covers Linux amd64; other architectures require their own build and installation checks.
 
 ## Build and install with Compose
 
-Run from the repository root on a Linux Docker host with Compose v2+. Docker Desktop can build/test the images; production secret-file ownership examples assume Linux. To use the published pair, export the image references and copy the configuration example:
+Run from the repository root on a Linux Docker host with Compose v2+. Docker Desktop can build/test the images; production secret-file ownership examples assume Linux. Select the updated local pair and copy the configuration example:
+
+Build both updated local tags using the source-build commands below before running these examples. They are not published security-release tags.
 
 ```bash
-export MOOSHIP_APP_IMAGE=shellharbor/mooship:1.2.0-moodle4.5.15-php8.3
-export MOOSHIP_WEB_IMAGE=shellharbor/mooship:1.2.0-moodle4.5.15-nginx-r1
+export MOOSHIP_APP_IMAGE=shellharbor/mooship:dev-moodle4.5.15-php8.3
+export MOOSHIP_WEB_IMAGE=shellharbor/mooship:dev-moodle4.5.15-nginx
 cp docker/.env.example docker/.env
 ```
 

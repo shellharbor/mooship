@@ -91,6 +91,51 @@ class RuntimeImageTests(unittest.TestCase):
             time.sleep(2)
         self.fail("nginx Docker HEALTHCHECK did not become healthy: " + self.assert_ok(docker("logs", name)))
 
+    def test_php_guard_enforces_every_patch_floor_and_actual_moodle_compatibility(self):
+        code = r'''
+require '/opt/mooship/check-runtime.php';
+$policy = json_decode(file_get_contents('/opt/mooship/runtime-policy.json'), true, 512, JSON_THROW_ON_ERROR);
+$floors = ['8.2' => 35, '8.3' => 36, '8.4' => 27, '8.5' => 12];
+$accepted = [];
+$rejected = [];
+foreach ($floors as $branch => $patch) {
+    foreach ([$patch, $patch + 1] as $safe) {
+        mooship_check_php_version("$branch.$safe", $policy);
+        $accepted[] = "$branch.$safe";
+    }
+    $rejected[] = $branch . '.' . ($patch - 1);
+}
+foreach (array_merge($rejected, ['7.4.99', '8.0.99', '8.1.99', '8.3.36RC1', '8.6.0', '8.3']) as $unsafe) {
+    try {
+        mooship_check_php_version($unsafe, $policy);
+        throw new LogicException('Guard accepted prohibited PHP: ' . $unsafe);
+    } catch (RuntimeException $expected) {
+        // The guard rejects the synthetic version; the test itself runs on patched PHP.
+    }
+}
+mooship_check_runtime('4.5.15');
+mooship_check_moodle_version('4.3', '8.2', $policy);
+mooship_check_moodle_version('4.3.0', '8.2', $policy);
+foreach ($policy['moodle_php'] as $moodle => $branches) {
+    foreach ($branches as $php) {
+        mooship_check_moodle_version($moodle, $php, $policy);
+    }
+}
+foreach (['4.2.99', '4.3', '6.0', '4.5-rc1'] as $moodle) {
+    try {
+        mooship_check_runtime($moodle);
+        throw new LogicException('Guard accepted incompatible Moodle: ' . $moodle);
+    } catch (RuntimeException $expected) {
+    }
+}
+echo json_encode(['actual' => PHP_VERSION, 'accepted' => $accepted]);
+'''
+        _, result = self.run_container("php-policy", APP_IMAGE, ["php", "-r", code],
+                                       options=["--read-only", "--env", "PHP_VERSION=8.1.99"])
+        response = json.loads(self.assert_ok(result))
+        self.assertEqual(response["actual"].split(".")[:2], ["8", "3"])
+        self.assertEqual(len(response["accepted"]), 8)
+
     def test_image_contract_and_invalid_configuration(self):
         self.password = "Test_'$\\&-" + uuid.uuid4().hex
         (Path(self.secrets.name) / "db_password").write_text(self.password + "\n", encoding="utf-8")
@@ -113,6 +158,9 @@ class RuntimeImageTests(unittest.TestCase):
         )
         _, result = self.run_container("contract", APP_IMAGE, ["php", "-r", code], options)
         contract = json.loads(self.assert_ok(result))
+        _, patch = self.run_container("php-patch", APP_IMAGE, ["php", "-r", "echo PHP_VERSION;"])
+        from test_runtime_policy import POLICY
+        POLICY.check_php(self.assert_ok(patch).strip())
         self.assertEqual(contract["uid"], 1000)
         self.assertFalse(contract["writable"])
         self.assertEqual(contract["password"], hashlib.sha256(self.password.encode()).hexdigest())

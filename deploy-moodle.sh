@@ -28,7 +28,7 @@ umask 077
 # Moodle:
 #   --moodle-version X.Y[.Z]     Moodle release (GitHub tag vX.Y.Z); X.Y selects the newest
 #                                X.Y.Z release (default 4.5)
-#   --php-version X.Y            PHP version: 7.4, 8.0–8.4 (defaults according to Moodle version)
+#   --php-version X.Y            PHP branch: 8.2, 8.3 or 8.4 (patched security baseline) (defaults according to Moodle version)
 #   --moodle-admin-user USER     Administrator login (default admin)
 #   --moodle-admin-password PASS Administrator password (generated if omitted)
 #   --moodle-admin-email EMAIL   Administrator email (default <admin-user>@<domain>)
@@ -463,6 +463,8 @@ parse_args() {
         error "Invalid Moodle version format: ${MOODLE_VERSION}. Expected X.Y or X.Y.Z (for example: 4.5 or 4.5.15)"
     fi
 
+    mooship_runtime_selection "$MOODLE_VERSION" "$PHP_VERSION" >/dev/null || error "Prohibited Moodle/PHP version"
+
     # --- Generate a Redis password if omitted ---
     if [[ -z "$REDIS_PASSWORD" ]]; then
         REDIS_PASSWORD=$(generate_random_password)
@@ -723,55 +725,11 @@ resolve_moodle_version() {
 
 # ==================== Select the PHP version for Moodle ==============
 select_php_version_for_moodle() {
-    if [[ -n "$PHP_VERSION" ]]; then
-        info "Using the specified PHP version: ${PHP_VERSION}"
-    else
-        info "Selecting a compatible PHP version for Moodle ${MOODLE_VERSION}..."
-
-        local MOODLE_MAJOR
-        local MOODLE_MINOR
-        MOODLE_MAJOR=$(echo "$MOODLE_VERSION" | cut -d'.' -f1)
-        MOODLE_MINOR=$(echo "$MOODLE_VERSION" | cut -d'.' -f2)
-
-        # Moodle 3.9: PHP 7.2-7.4 (recommend 7.4)
-        if [[ "$MOODLE_MAJOR" -eq 3 && "$MOODLE_MINOR" -eq 9 ]]; then
-            PHP_VERSION="7.4"
-        # Moodle 3.11: PHP 7.3-8.0 (recommend 8.0)
-        elif [[ "$MOODLE_MAJOR" -eq 3 && "$MOODLE_MINOR" -eq 11 ]]; then
-            PHP_VERSION="8.0"
-        # Moodle 4.0: PHP 7.3-8.0 (recommend 8.0)
-        elif [[ "$MOODLE_MAJOR" -eq 4 && "$MOODLE_MINOR" -eq 0 ]]; then
-            PHP_VERSION="8.0"
-        # Moodle 4.1: PHP 7.4-8.1 (recommend 8.1)
-        elif [[ "$MOODLE_MAJOR" -eq 4 && "$MOODLE_MINOR" -eq 1 ]]; then
-            PHP_VERSION="8.1"
-        # Moodle 4.2-4.4: PHP 8.0/8.1-8.2 (recommend 8.2)
-        elif [[ "$MOODLE_MAJOR" -eq 4 && "$MOODLE_MINOR" -ge 2 && "$MOODLE_MINOR" -le 4 ]]; then
-            PHP_VERSION="8.2"
-        # Moodle 4.5: PHP 8.1-8.3 (recommend 8.3)
-        elif [[ "$MOODLE_MAJOR" -eq 4 && "$MOODLE_MINOR" -eq 5 ]]; then
-            PHP_VERSION="8.3"
-        # Moodle 5.0-5.2: PHP 8.2-8.4; 5.3: PHP 8.3-8.4 (recommend 8.4)
-        elif [[ "$MOODLE_MAJOR" -ge 5 ]]; then
-            PHP_VERSION="8.4"
-        else
-            warn "Unknown Moodle version ${MOODLE_VERSION}, using PHP 8.3 by default"
-            PHP_VERSION="8.3"
-        fi
-    fi
-
-    # Filenames omit the dot: 8.2 → 82 (php82.Dockerfile, php82.ini).
-    # Normalize manually specified versions too, to avoid php8.2.Dockerfile
-    PHP_VERSION="${PHP_VERSION//./}"
-
-    if [[ ! -f "${TEMPLATE_DIR}/.docker/php/php${PHP_VERSION}.Dockerfile" ]]; then
-        error "No Dockerfile for PHP ${PHP_VERSION}: ${TEMPLATE_DIR}/.docker/php/php${PHP_VERSION}.Dockerfile"
-    fi
-    if [[ ! -f "${TEMPLATE_DIR}/.config/php/php${PHP_VERSION}.ini" ]]; then
-        error "No php.ini for PHP ${PHP_VERSION}: ${TEMPLATE_DIR}/.config/php/php${PHP_VERSION}.ini"
-    fi
-
-    success "Selected PHP $(php_version_label) for Moodle ${MOODLE_VERSION}"
+    PHP_VERSION=$(mooship_runtime_selection "$MOODLE_VERSION" "$PHP_VERSION") ||
+        error "The requested Moodle/PHP combination violates the runtime security policy"
+    [[ -f "${TEMPLATE_DIR}/.docker/php/php${PHP_VERSION}.Dockerfile" ]] || error "Missing patched PHP Dockerfile"
+    [[ -f "${TEMPLATE_DIR}/.config/php/php${PHP_VERSION}.ini" ]] || error "Missing PHP configuration"
+    success "Selected patched PHP $(php_version_label) for Moodle ${MOODLE_VERSION}"
 }
 
 # 84 → 8.4 (for display)
@@ -1386,6 +1344,8 @@ build_and_start_project() {
     ensure_project_docker_resources
 
     info "Running: docker compose up -d --build"
+    docker compose build --pull php cron || error "Could not build patched PHP images"
+    mooship_verify_project_php || error "PHP security verification failed"
     if ! docker compose up -d --build php nginx redis certbot_renew; then
         error "Could not build/start the project. Check logs: cd ${PROJECT_DIR} && docker compose logs"
     fi
@@ -1483,6 +1443,7 @@ install_moodle() {
     if ! moodle_code_present; then
         error "version.php not found in the Moodle ${MOODLE_VERSION} archive"
     fi
+    mooship_require_project_runtime
 
     # Moodle 5.1+: web files moved to public/ (config.php, lib/, and admin/cli remain at the root)
     if [[ -f "${PROJECT_DIR}/public_html/public/version.php" ]]; then

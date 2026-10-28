@@ -7,18 +7,18 @@ set -euo pipefail
 # Scenario:
 #   Use a specific PHP version instead of the script's automatic selection
 #   (for example, for compatibility with third-party plugins).
-#   Moodle 4.4 defaults to PHP 8.2; this example uses 8.1.
+#   Moodle 4.5 defaults to PHP 8.3; this example uses patched PHP 8.2.
 #
 # Result:
 #   - project /var/www/school, site https://school.example.com
-#   - Moodle 4.4.0 + PHP 8.1 (image from moodle/.docker/php/php81.Dockerfile,
-#     settings from moodle/.config/php/php81.ini)
+#   - Moodle 4.5.15 + PHP 8.2 (image from moodle/.docker/php/php82.Dockerfile,
+#     settings from moodle/.config/php/php82.ini)
 #
 # Before running, replace:
 #   - school / school.example.com → your slug and domain
-#   - 4.4.0 / 8.1 → your versions. PHP 7.4 and 8.0–8.4 are available (format: 8.1 or 81).
-#     The script DOES NOT check PHP/Moodle version compatibility; if they
-#     are incompatible, the installation environment check will fail.
+#   - 4.5.15 / 8.2 → your versions. Only patched PHP 8.2–8.4 are available (format: 8.2 or 82).
+#     The script checks PHP/Moodle version compatibility; incompatible pairs
+#     are rejected before creating deployment resources.
 #   - admin@example.com → your email
 #
 # Run on the server from the mooship directory (for example, /opt/mooship):
@@ -32,7 +32,7 @@ DEPLOY_DIR="${DEPLOY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 sudo bash "$DEPLOY_DIR/deploy-moodle.sh" \
   --slug school \
   --domain school.example.com \
-  --moodle-version 4.4.0 \
-  --php-version 8.1 \
+  --moodle-version 4.5.15 \
+  --php-version 8.2 \
   --db-type postgres \
   --ssl-email admin@example.com

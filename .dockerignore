@@ -9,6 +9,10 @@
 !docker/nginx.conf.template
 !docker/health.txt
 !moodle/
+!moodle/.docker/
+!moodle/.docker/php/
+!moodle/.docker/php/runtime-policy.json
+!moodle/.docker/php/check-runtime.php
 !moodle/.config/
 !moodle/.config/php/
 !moodle/.config/php/mooship.ini

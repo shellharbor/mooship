@@ -41,13 +41,16 @@ def require_linux() -> None:
         raise ValueError("Run installation and server operations on the target Linux server over SSH")
 
 
-def toolkit_root(directory: str) -> Path:
+def toolkit_root(directory: str, require_policy: bool = True) -> Path:
     root = absolute_path(directory)
     if (root / ".mooship-installing").exists():
         raise ValueError("Toolkit installation is incomplete; inspect it before use")
     if not (root / "VERSION").is_file():
         raise ValueError("Toolkit is missing; run 'mooship install' or select --directory")
     release_version((root / "VERSION").read_text(encoding="ascii").strip())
+    if require_policy and (not (root / "lib/runtime_policy.py").is_file()
+                           or not (root / "moodle/.docker/php/runtime-policy.json").is_file()):
+        raise ValueError("Toolkit predates the mandatory PHP security policy; install an updated release")
     return root
 
 
@@ -65,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Installed Mooship {version} into {destination}")
             return 0
         arguments = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
-        root = toolkit_root(args.directory)
+        root = toolkit_root(args.directory, require_policy=args.command in ("deploy", "activate", "restore"))
         if args.command == "toolkit-version":
             if arguments:
                 raise ValueError("toolkit-version does not accept backend arguments")

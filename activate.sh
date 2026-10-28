@@ -63,6 +63,13 @@ start_project_containers() {
     info "Starting containers for project ${SLUG}..."
     cd "${PROJECT_DIR}" || error "Cannot enter ${PROJECT_DIR}"
     
+    local services
+    services=$(docker compose config --services)
+    if grep -qx php <<< "$services"; then
+        mooship_require_project_runtime
+        docker compose build --pull php cron || error "Could not build patched PHP images"
+        mooship_verify_project_php || error "PHP security verification failed before activation"
+    fi
     if docker compose up -d --build; then
         info "Project ${SLUG} containers started"
     else

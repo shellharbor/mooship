@@ -154,7 +154,7 @@ class HttpRoundtripTests(unittest.TestCase):
                   (self.directory / "acme", "/var/www/certbot"),
                   (self.directory / ".htpasswd", "/etc/nginx/.htpasswd"),
                   (certificates, "/etc/letsencrypt")]
-        self.start(self.slug + "_php", os.environ.get("MOOSHIP_TEST_PHP_IMAGE", "php:8.4-fpm"),
+        self.start(self.slug + "_php", os.environ.get("MOOSHIP_TEST_PHP_IMAGE", "php:8.4.27-fpm"),
                    ["php-fpm", "--fpm-config", "/fixtures/php-fpm.conf", "--nodaemonize"], common)
         self.start(self.slug + "_nginx", "nginx:1.29.1-alpine",
                    ["nginx", "-g", "daemon off;"],

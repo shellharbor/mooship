@@ -24,7 +24,7 @@ For reinstallation, create a full backup first, then confirm `remove.sh` separat
 | [01-minimal-postgres.sh](01-minimal-postgres.sh) | Minimal invocation: a generated slug is added to the domain (wildcard DNS required) | `--domain` `--db-type postgres` `--ssl-email` |
 | [02-mysql-explicit-slug.sh](02-mysql-explicit-slug.sh) | Containerized MySQL with an explicit slug | `--slug lms` `--db-type mysql` |
 | [03-moodle-5-version.sh](03-moodle-5-version.sh) | The newest Moodle 5.3.x: PHP 8.4 is selected automatically, and nginx's document root switches to `public/` | `--moodle-version 5.3` |
-| [04-explicit-php-version.sh](04-explicit-php-version.sh) | An explicit PHP version instead of automatic selection | `--moodle-version 4.4.0` `--php-version 8.1` |
+| [04-explicit-php-version.sh](04-explicit-php-version.sh) | An explicit PHP version instead of automatic selection | `--moodle-version 4.5.15` `--php-version 8.2` |
 | [05-custom-admin.sh](05-custom-admin.sh) | Custom administrator username, password, and email | `--moodle-admin-user` `--moodle-admin-password` `--moodle-admin-email` |
 | [06-site-names.sh](06-site-names.sh) | Full and short site names | `--moodle-site-fullname` `--moodle-site-shortname` |
 | [07-native-postgres.sh](07-native-postgres.sh) | Host PostgreSQL instead of a container (`172.17.0.1:5432`) | `--db-native` |

@@ -2,6 +2,8 @@
 
 Mooship 1.2.0 introduces a dependency-free Python CLI and the standalone Moodle/PHP and nginx images. The host toolkit, Python distribution and image metadata use root VERSION. A new version never changes old tags, existing installations, databases or volumes.
 
+The next security candidate is 1.2.1; 1.2.0 artifacts below are historical and predate the [runtime security baseline](RUNTIME_POLICY.md). Before publishing, verify exact PHP patch floors, compatible Moodle versions, both rebuilt targets, lifecycle regressions and all six E2E cases. Do not republish an old immutable tag as a security fix.
+
 ## Prepare and verify
 
 1. Update VERSION and release documentation, keeping Docker image tags and the pinned Moodle/PHP pair consistent. Build/test the package and the affected images according to [Python](PYTHON.md) and [Docker](DOCKER.md).

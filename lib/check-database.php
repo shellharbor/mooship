@@ -1,5 +1,5 @@
 <?php
-// Standalone PHP 7.4+ probe: no Moodle bootstrap, schema changes, or credential output.
+// Standalone patched PHP 8.2+ probe: no Moodle bootstrap, schema changes, or credential output.
 $mode = getenv('MOOSHIP_DB_CHECK') ?: 'connect';
 try {
     $host = getenv('MOOSHIP_DB_HOST');

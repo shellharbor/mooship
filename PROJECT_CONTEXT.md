@@ -5,13 +5,21 @@ Last verified: 2026-10-28. Sources: the user's instructions, local Git metadata,
 ## Project overview
 
 - **Mooship** automates Moodle installation on Ubuntu with Docker Compose and a shared reverse proxy.
-- Git origin is shellharbor/mooship. Local main and origin/main contain release commit `82a658205bfdeaaa68026f924db2305bd7976b29`, tagged `v1.2.0`. GitHub confirmed v1.2.0 as the latest published release on 2026-10-28; PRs #11 and #6 are merged. Earlier primary baseline: cddc89b (v1.1.2 commit subject).
+- Git origin is shellharbor/mooship. At the preceding publication, main contained release commit `82a658205bfdeaaa68026f924db2305bd7976b29`, tagged `v1.2.0`. GitHub confirmed v1.2.0 as the latest published release on 2026-10-28; PRs #11 and #6 are merged. Earlier primary baseline: cddc89b (v1.1.2 commit subject).
 - Workflows: creating a site, activation/deactivation, explicit removal, full backups, and restoration into an unused directory.
 - Project language: English throughout documentation, code comments, CLI help, prompts, log/error messages, configuration templates, examples, and local agent instructions. Keep future additions in English, as requested by the user.
 - Chat language: Russian, according to the user's current language policy; project artifacts shown in chat retain English.
 - README badges below the banner show six live `main`-branch workflow statuses (CI, CodeQL, Security, Component integration, Configuration, Documentation), the latest published release, and the MIT license. E2E and coverage-service badges are not configured.
 - Public AI entry point: root `SKILL.md` (`name: mooship`) covers development, review, server operations, invariants, and validation without requiring AI-KIT. It is tracked, and README links to it for GitHub readers and normal clones. The existing `.claude/skills/deploy-moodle/SKILL.md` delegates to it but remains local and ignored, as do `.agents/` and `ai-kit/`. No global installation. The local `ai-kit/SKILLS.md` registers the public entry point.
 - Published documentation includes the already tracked `PROJECT_CONTEXT.md`, `WIKI.md`, and `BOOTSTRAP_PROMPT.md` despite their ignore patterns. Optional local AI-KIT resources are named as code paths rather than public Markdown links. The documentation gate validates targets against tracked and pending non-ignored files, so local-only resources cannot hide broken links in a clean checkout.
+
+## Mandatory runtime security baseline (2026-10-28)
+
+- Owner instruction: PHP branch floors are **8.2.35 / 8.3.36 / 8.4.27 / 8.5.12**; prohibit PHP 8.1 and older and Moodle below **4.3**, including 4.3 itself in allowed versions. Official PHP changelog and AWS bulletin 2026-143 confirm CVE-2026-109618/CVE-2026-109619 patch levels. Earlier stack entries below are historical and do not permit obsolete runtimes.
+- Canonical policy: `moodle/.docker/php/runtime-policy.json`; host selection and actual-version checks: `lib/runtime_policy.py`; image build/startup guard: `moodle/.docker/php/check-runtime.php`. Moodle 4.3 allows PHP 8.2; 4.4/4.5 allow 8.2/8.3; 5.0/5.1 allow 8.2/8.3/8.4; 5.2/5.3 allow 8.3/8.4. PHP 8.5 has no verified Moodle pair; unknown branches and prereleases fail closed.
+- Host PHP 8.2/8.3/8.4 templates now use digest-pinned patched Bookworm bases. PHP 7.4/8.0/8.1 Dockerfiles and INI files are removed. Root app/web builds use patched PHP 8.3.36 for runtime/source. Activation and restore validate saved versions, rebuild, then probe actual PHP before site startup or DB import; diagnosis/backup/removal remain available for migration. The Python adapter rejects pre-policy toolkits for deploy/activate/restore.
+- Source VERSION is 1.2.1, a candidate **not yet published**. Existing Docker/PyPI/native 1.2.0 artifacts predate the policy and must not be used for new deployments. Existing installations/data are not automatically modified. Read `docs/RUNTIME_POLICY.md` and ADR-0007 for migration and maintenance.
+- This task affects host PHP/cron templates and both standalone targets; local rebuild/runtime validation and GitHub CI results are recorded below when completed. E2E now includes Moodle 4.3/4.5/5.3 x PostgreSQL/MySQL (six cases).
 
 ## Verified stack
 

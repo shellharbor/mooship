@@ -1,12 +1,15 @@
-ARG PHP_IMAGE=php:8.3-fpm-bookworm@sha256:f768bd9142444f6126a690697b028c23f30878c3b628a7c355dfce75e29cc045
+ARG PHP_IMAGE=php:8.3.36-fpm-bookworm@sha256:a1a4f6f48c2e27f4974ea21459ca6c483bd3d4fbe18579ae61571a78bbe59fff
 ARG NGINX_IMAGE=nginx:1.31.0-alpine@sha256:2f07d83bf561b506400dc183b1b2003803e39efbd22451f848adaba14d28c7c7
 ARG MOODLE_VERSION=4.5.15
 ARG MOODLE_COMMIT=0a694ba9b8b4183bf7a45094cfa7211030db3192
 ARG MOODLE_SHA256=19d8ab675769cd631b733c63914d1e318acad575763c75ef7e7e238f4180ed70
 
 FROM ${PHP_IMAGE} AS extensions
+ARG MOODLE_VERSION
 ARG REDIS_VERSION=6.3.0
-RUN apt-get update && apt-get install -y --no-install-recommends \
+COPY moodle/.docker/php/runtime-policy.json moodle/.docker/php/check-runtime.php /opt/mooship/
+RUN php /opt/mooship/check-runtime.php "${MOODLE_VERSION}" \
+    && apt-get update && apt-get install -y --no-install-recommends \
         libicu-dev libpq-dev libzip-dev libpng-dev libjpeg62-turbo-dev \
         libfreetype6-dev libonig-dev libxml2-dev libwebp-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
@@ -19,7 +22,9 @@ FROM ${PHP_IMAGE} AS source
 ARG MOODLE_VERSION
 ARG MOODLE_COMMIT
 ARG MOODLE_SHA256
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+COPY moodle/.docker/php/runtime-policy.json moodle/.docker/php/check-runtime.php /opt/mooship/
+RUN php /opt/mooship/check-runtime.php "${MOODLE_VERSION}" \
+    && apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && mkdir -p /opt/moodle /opt/mooship \
     && test -n "${MOODLE_SHA256}" \
     && curl --fail --location --retry 3 --output /tmp/moodle.tar.gz \
@@ -59,6 +64,7 @@ FROM ${PHP_IMAGE} AS app
 ARG MOODLE_VERSION
 ARG MOOSHIP_VERSION=dev
 ARG VCS_REF=unknown
+COPY --from=source /opt/mooship/runtime-policy.json /opt/mooship/check-runtime.php /opt/mooship/
 LABEL org.opencontainers.image.title="Mooship Moodle runtime" \
       org.opencontainers.image.source="https://github.com/shellharbor/mooship" \
       org.opencontainers.image.version="${MOOSHIP_VERSION}-moodle${MOODLE_VERSION}-php8.3" \

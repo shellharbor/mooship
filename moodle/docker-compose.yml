@@ -213,7 +213,7 @@ services:
       - ./.config/php/php${PHP_VERSION}.ini:/usr/local/etc/php/php.ini:ro
       - ./.config/php/mooship.ini:/usr/local/etc/php/conf.d/zz-mooship.ini:ro
     # Run Moodle cron every minute (the image uses Debian and runs as www; crond/crontab are unsuitable here)
-    entrypoint: >
+    command: >
       sh -c "while true; do
         php /var/www/html/admin/cli/cron.php > /dev/null
         sleep 60

@@ -58,6 +58,7 @@ restore_main() (
         printf -v "$key" '%s' "$(mooship_read_env "$stage/project/.env" "$key")"
     done
     DOMAIN="$SITE_HOST"
+    mooship_require_project_runtime "$stage/project"
     # Archives created before HTTP support default to their original HTTPS behavior.
     case "${SITE_SCHEME:-https}" in
         http) OBTAIN_SSL=false ;;
@@ -95,7 +96,8 @@ restore_main() (
     create_native_database
     ensure_project_docker_resources
     docker compose config --quiet
-    docker compose build php nginx cron
+    docker compose build --pull php nginx cron
+    mooship_verify_project_php || error "PHP security verification failed before database import"
     if [[ "$DB_NATIVE" != true ]]; then
         docker compose up -d db
         mooship_wait_database || error "The database is not ready for restore"

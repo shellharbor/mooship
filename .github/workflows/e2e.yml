@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        moodle: ["4.5", "5.3"]
+        moodle: ["4.3", "4.5", "5.3"]
         db: [postgres, mysql]
     env:
       SLUG: e2e
@@ -46,6 +46,11 @@ jobs:
           sudo bash deploy-moodle.sh --slug "$SLUG" --domain "$DOMAIN" --no-ssl
           --db-type "${{ matrix.db }}" --moodle-version "${{ matrix.moodle }}" --profile small
           --smtp-host "${gateway}:1025" --smtp-secure none --noreply-email "noreply@${DOMAIN}"
+
+      - name: Verify the actual PHP security baseline
+        run: |
+          actual=$(docker exec "${SLUG}_php" php -r 'echo PHP_VERSION;')
+          python3 -B lib/runtime_policy.py check-runtime "${{ matrix.moodle }}" "$actual"
 
       - name: Login page through nginxproxy
         run: |
