@@ -17,9 +17,9 @@ Automated Moodle deployment on Ubuntu. Chosen GitHub repository: [shellharbor/mo
 
 The PHP version is selected automatically based on the Moodle version. Passwords, database names, and available ports are generated unless supplied explicitly.
 
-For a portable application image, see the [standalone Moodle Docker guide](docs/DOCKER.md). The root Dockerfile builds Moodle 4.5.15/PHP 8.3 and a matching nginx companion, with separate PostgreSQL/MySQL and persistent data. Compose examples, Kubernetes manifests, installation tests, and later Docker Hub publication instructions are included. Build these images locally until published; the host installer below is an independent deployment option. Bundled Moodle retains its GPL license.
+For a portable application image, see the [standalone Moodle Docker guide](docs/DOCKER.md) and [Docker Hub](https://hub.docker.com/r/shellharbor/mooship). Mooship 1.2.0 provides Moodle 4.5.15/PHP 8.3 and the corrected `nginx-r1` companion, with separate PostgreSQL/MySQL and persistent data. Compose examples, Kubernetes manifests and installation tests are included. The host installer below is an independent deployment option. Bundled Moodle retains its GPL license.
 
-The [Python CLI](docs/PYTHON.md) provides a dependency-free `mooship` command for verified toolkit installation and the existing deployment, lifecycle, backup/restore and diagnostics scripts. Version 1.2.0 introduces packaging for pip/pipx; use `pipx install .` from a reviewed checkout until publication. See [release publication](docs/RELEASING.md) for Docker Hub and PyPI setup and verification.
+The [Python CLI](docs/PYTHON.md) provides a dependency-free `mooship` command for verified toolkit installation and the existing deployment, lifecycle, backup/restore and diagnostics scripts. Install the published package with `pipx install mooship==1.2.0`. See [release publication](docs/RELEASING.md) for Docker Hub and PyPI setup and verification.
 
 Deployment validates ports and service readiness before publishing a site. For native databases, `--db-host HOST` selects the container-reachable address (default `host.docker.internal` with Linux host-gateway mapping). See [preflight, native database access, and readiness](docs/PREFLIGHT.md) for requirements and checks.
 

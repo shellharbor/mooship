@@ -76,6 +76,21 @@ class RuntimeImageTests(unittest.TestCase):
             "--env", "MOODLE_WWWROOT=http://web:8080",
         ]
 
+    def test_web_liveness_is_healthy_without_a_database(self):
+        name, result = self.run_container("web-liveness", WEB_IMAGE, options=[
+            "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges:true",
+            "--tmpfs", "/tmp:uid=1000,gid=1000,mode=1770",
+            "--env", "MOOSHIP_FPM_UPSTREAM=127.0.0.1:9000",
+        ], detached=True)
+        self.assert_ok(result)
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            status = self.assert_ok(docker("inspect", "--format", "{{.State.Health.Status}}", name)).strip()
+            if status == "healthy":
+                return
+            time.sleep(2)
+        self.fail("nginx Docker HEALTHCHECK did not become healthy: " + self.assert_ok(docker("logs", name)))
+
     def test_image_contract_and_invalid_configuration(self):
         self.password = "Test_'$\\&-" + uuid.uuid4().hex
         (Path(self.secrets.name) / "db_password").write_text(self.password + "\n", encoding="utf-8")
