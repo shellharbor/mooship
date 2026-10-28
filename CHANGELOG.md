@@ -41,6 +41,7 @@ After every task with file changes, briefly record what changed and why: feature
 
 ### Project
 
+- 2026-10-28: fixed Linux image-test secret fixtures: their bind-mounted temporary directory now permits traversal by runtime UID 1000. Docker Desktop's Windows bind handling had hidden the directory-permission failure reproduced by GitHub's Linux runner.
 - 2026-10-28: prepared Mooship 1.2.0 distribution: a dependency-free Python CLI modeled on LaraShip, exact-release HTTPS/checksum/archive validation, native command forwarding, reproducible toolkit assets, wheel/sdist checks, Python compatibility CI, and gated Docker Hub/PyPI release workflows. Extended lint/security/dependency checks to the Python package and documented account setup and publication evidence. Existing application images remain separate from host administration.
 - 2026-10-28: integrated the previously isolated PR #6 preflight/readiness/router/dependency fixes into the distribution branch, resolving documentation conflicts and preserving standalone image work. The combined Linux snapshot passed 130 regressions (145 discovered, 15 opt-in skipped); wheel/sdist metadata and actual native release archive verification passed.
 

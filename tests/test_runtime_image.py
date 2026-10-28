@@ -33,6 +33,8 @@ class RuntimeImageTests(unittest.TestCase):
         self.network = self.prefix
         self.label = "io.mooship.test=" + self.prefix
         self.secrets = tempfile.TemporaryDirectory(prefix=self.prefix)
+        # The fixture directory is bind-mounted as a whole; UID 1000 must traverse it on Linux.
+        Path(self.secrets.name).chmod(0o755)
         self.addCleanup(self.secrets.cleanup)
         self.addCleanup(self.cleanup_docker)
         self.assert_ok(docker("network", "create", "--label", self.label, self.network))
