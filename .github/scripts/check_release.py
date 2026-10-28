@@ -34,6 +34,9 @@ def main() -> None:
     version = Path("VERSION").read_text(encoding="ascii").strip()
     validate_tag(os.environ["RELEASE_TAG"], version)
     commit = command("git", "rev-parse", "HEAD")
+    tagged = command("git", "rev-parse", "--verify", f"refs/tags/{os.environ['RELEASE_TAG']}^{{commit}}")
+    if tagged != commit:
+        raise ValueError("Checkout does not match the exact release tag commit")
     runs = json.loads(command("gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs?head_sha={commit}&per_page=100"))
     check_runs(runs["workflow_runs"], commit)
     source = Path("Dockerfile").read_text(encoding="utf-8")

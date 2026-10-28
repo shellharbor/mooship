@@ -7,6 +7,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 
@@ -20,9 +21,21 @@ def load_script(name):
 
 release = load_script("check_release")
 archive = load_script("build_release")
+image_tags = load_script("check_image_tags")
 
 
 class ReleaseGateTests(unittest.TestCase):
+    def test_existing_tags_and_unavailable_registry_cannot_authorize_overwrite(self):
+        tag = "1.2.0-moodle4.5.15-php8.3"
+        with patch.object(image_tags, "urlopen"):
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                image_tags.require_new_tag(tag)
+        with patch.object(image_tags, "urlopen", side_effect=HTTPError("https://example.test", 404, "missing", {}, None)):
+            image_tags.require_new_tag(tag)
+        with patch.object(image_tags, "urlopen", side_effect=HTTPError("https://example.test", 503, "unavailable", {}, None)):
+            with self.assertRaises(HTTPError):
+                image_tags.require_new_tag(tag)
+
     def test_tag_must_match_the_exact_version(self):
         release.validate_tag("v1.2.0", "1.2.0")
         for value in ("v1.1.2", "1.2.0", "v1.2", "v1.2.0/../main", "v1.2.0\n"):

@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.event.release.tag_name }}
+          ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
           persist-credentials: false
       - name: Verify tag, version and exact-commit CI
         id: release
@@ -119,6 +119,7 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           test -n "$DOCKERHUB_USERNAME" && test -n "$DOCKERHUB_TOKEN"
+          python3 .github/scripts/check_image_tags.py
           printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
           docker push "$IMAGE:$VERSION-moodle$MOODLE_VERSION-php8.3"
           docker push "$IMAGE:$VERSION-moodle$MOODLE_VERSION-nginx"

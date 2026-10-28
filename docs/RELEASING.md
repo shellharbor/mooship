@@ -31,6 +31,6 @@ PyPI project name: **mooship**. Distributions contain the Python adapter; the se
 
 ## Retry and verification
 
-Use **Release → Run workflow**, select the reviewed workflow branch and enter the existing release tag. The tag must still match VERSION and have successful checks. Native asset retries compare content and refuse to replace conflicting files; PyPI skips existing distribution files. Do not move an existing tag to publish changed code. Fixes require a new version.
+Use **Release → Run workflow**, select the reviewed workflow branch and enter the existing release tag. The tag must still match VERSION and have successful checks. Native asset retries compare content and refuse to replace conflicting files; PyPI skips existing distribution files. Docker publication refuses existing release image tags; disable `DOCKERHUB_PUBLISH` when retrying other formats after a successful image upload. Do not move an existing tag to publish changed code. Fixes require a new version.
 
 After publication, verify the Docker Hub tags/digests, pull and smoke-test the images, and install the package from PyPI in a fresh environment. Also run `mooship install` against the real GitHub assets in an unused temporary destination, then check the toolkit VERSION. A workflow definition or local build alone is not publication evidence.
