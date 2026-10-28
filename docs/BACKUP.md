@@ -1,5 +1,7 @@
 # Mooship backup and restore
 
+Restore enforces the [runtime security policy](RUNTIME_POLICY.md): Moodle 4.3+, compatible patched PHP, actual source agreeing with saved metadata, and a PHP probe before database import/startup. Old archives are preserved for migration; they are not silently rewritten. Backup and diagnosis remain available for unsupported sites.
+
 ## Create a backup
 
 ```bash

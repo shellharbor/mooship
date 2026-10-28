@@ -2,6 +2,8 @@
 
 Mooship 1.2.0 introduces a dependency-free Python CLI and the standalone Moodle/PHP and nginx images. The host toolkit, Python distribution and image metadata use root VERSION. A new version never changes old tags, existing installations, databases or volumes.
 
+Security release 1.2.1 applies the [runtime security baseline](RUNTIME_POLICY.md). Before publishing, verify exact PHP patch floors, compatible Moodle versions, both rebuilt targets, lifecycle regressions and all six E2E cases. Do not republish an old immutable tag as a security fix.
+
 ## Prepare and verify
 
 1. Update VERSION and release documentation, keeping Docker image tags and the pinned Moodle/PHP pair consistent. Build/test the package and the affected images according to [Python](PYTHON.md) and [Docker](DOCKER.md).
@@ -17,8 +19,8 @@ The Docker Hub repository is **shellharbor/mooship**. Configure repository varia
 The release job checks out the verified commit, builds Linux amd64 `app` and `web`, runs real Moodle installs with PostgreSQL and MySQL, then publishes:
 
 ```text
-shellharbor/mooship:1.2.0-moodle4.5.15-php8.3
-shellharbor/mooship:1.2.0-moodle4.5.15-nginx
+shellharbor/mooship:1.2.1-moodle4.5.15-php8.3
+shellharbor/mooship:1.2.1-moodle4.5.15-nginx
 ```
 
 PHP and nginx must use the matching Moodle source. No `latest` alias or untested architecture is published. Record the resulting digests and prefer digest references in production. The [Docker guide](DOCKER.md#tests-and-later-publication) also supports a checked manual publication using an existing local Docker login; always set MOOSHIP_VERSION and VCS_REF to the release version and exact source commit.

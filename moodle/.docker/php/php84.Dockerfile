@@ -1,4 +1,8 @@
-FROM php:8.4-fpm
+FROM php:8.4.27-fpm-bookworm@sha256:1b6bb4f3d32dfbcd1e159d7bd47caa8852507f61666db7731d73f34acec781b6
+
+COPY runtime-policy.json check-runtime.php /opt/mooship/
+RUN php /opt/mooship/check-runtime.php
+COPY --chmod=755 runtime-entrypoint.sh /usr/local/bin/mooship-runtime-entrypoint
 
 RUN apt update && apt install -y \
     libzip-dev libpng-dev libjpeg-dev libfreetype6-dev \
@@ -73,4 +77,5 @@ RUN groupadd -g 1000 www \
 
 USER www
 
+ENTRYPOINT ["mooship-runtime-entrypoint"]
 CMD ["php-fpm"]

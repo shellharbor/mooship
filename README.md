@@ -15,11 +15,11 @@ Automated Moodle deployment on Ubuntu. Chosen GitHub repository: [shellharbor/mo
 
 `deploy-moodle.sh` deploys Moodle on an Ubuntu server with a single command. It creates an isolated Docker project (PHP-FPM, nginx, PostgreSQL or MySQL, Redis, cron, certbot), installs Moodle through the CLI, connects the site to the shared `nginxproxy` reverse proxy, and obtains a Let's Encrypt certificate. Companion scripts schedule full backups and check the health of every site.
 
-The PHP version is selected automatically based on the Moodle version. Passwords, database names, and available ports are generated unless supplied explicitly.
+Moodle 4.3+ is required. PHP 8.1 and older are prohibited; minimum patches are 8.2.35, 8.3.36, 8.4.27 and 8.5.12, subject to Moodle compatibility. See the enforced [runtime security policy](docs/RUNTIME_POLICY.md). The PHP branch is selected automatically based on the Moodle version. Passwords, database names, and available ports are generated unless supplied explicitly.
 
-For a portable application image, see the [standalone Moodle Docker guide](docs/DOCKER.md) and [Docker Hub](https://hub.docker.com/r/shellharbor/mooship). Mooship 1.2.0 provides Moodle 4.5.15/PHP 8.3 and the corrected `nginx-r1` companion, with separate PostgreSQL/MySQL and persistent data. Compose examples, Kubernetes manifests and installation tests are included. The host installer below is an independent deployment option. Bundled Moodle retains its GPL license.
+For a portable application image, see the [standalone Moodle Docker guide](docs/DOCKER.md) and [Docker Hub](https://hub.docker.com/r/shellharbor/mooship). The updated source builds Moodle 4.5.15/PHP 8.3.36 and matching nginx, with separate PostgreSQL/MySQL and persistent data. Use the matching `1.2.1-moodle4.5.15-php8.3` and `1.2.1-moodle4.5.15-nginx` tags. Version 1.2.0 predates the security floor. Compose examples, Kubernetes manifests and installation tests are included. The host installer below is an independent deployment option. Bundled Moodle retains its GPL license.
 
-The [Python CLI](docs/PYTHON.md) provides a dependency-free `mooship` command for verified toolkit installation and the existing deployment, lifecycle, backup/restore and diagnostics scripts. Install the published package with `pipx install mooship==1.2.0`. See [release publication](docs/RELEASING.md) for Docker Hub and PyPI setup and verification.
+The [Python CLI](docs/PYTHON.md) provides a dependency-free `mooship` command for verified toolkit installation and the existing deployment, lifecycle, backup/restore and diagnostics scripts. Install the security release with `pipx install mooship==1.2.1`. Upgrade both the Python CLI and native toolkit; 1.2.0 predates the runtime policy. See [release publication](docs/RELEASING.md) for Docker Hub and PyPI setup and verification.
 
 Deployment validates ports and service readiness before publishing a site. For native databases, `--db-host HOST` selects the container-reachable address (default `host.docker.internal` with Linux host-gateway mapping). See [preflight, native database access, and readiness](docs/PREFLIGHT.md) for requirements and checks.
 
@@ -252,8 +252,8 @@ Source: `parse_args` and the script's `--help` text. Unknown arguments cause an 
 
 | Argument | Default | Description |
 |---|---|---|
-| `--moodle-version X.Y[.Z]` | `4.5` | Moodle release, downloaded as the GitHub tag `v<X.Y.Z>`. `X.Y` selects the newest stable `X.Y.Z` release of that branch at deployment time (`git ls-remote`; beta/rc tags are ignored), for example `4.5` → 4.5.15 in October 2026. `X.Y.Z` installs exactly that release. Supports 3.9 … 5.x, including 5.1+ with the `public/` directory (see [Moodle 5.1+](#moodle-51-public-directory)) |
-| `--php-version X.Y` | based on Moodle version | 7.4 or 8.0–8.4, written as `8.2` or `82` (see [PHP selection](#php-selection)) |
+| `--moodle-version X.Y[.Z]` | `4.5` | Moodle release, downloaded as the GitHub tag `v<X.Y.Z>`. `X.Y` selects the newest stable `X.Y.Z` release of that branch at deployment time (`git ls-remote`; beta/rc tags are ignored), for example `4.5` → 4.5.15 in October 2026. `X.Y.Z` installs exactly that release. Supports verified branches 4.3–5.3, including 5.1+ with the `public/` directory (see [Moodle 5.1+](#moodle-51-public-directory)) |
+| `--php-version X.Y` | based on Moodle version | A compatible patched 8.2, 8.3 or 8.4 branch, written as `8.2` or `82` (see [PHP selection](#php-selection)); legacy and incompatible branches are rejected |
 | `--moodle-admin-user USER` | `admin` | Administrator username |
 | `--moodle-admin-email EMAIL` | `<admin-user>@<domain>` | Administrator email; use a mailbox that exists, because Moodle sends password resets and notifications to it |
 | `--moodle-admin-password PASS` | generated (15 characters) | Administrator password |
@@ -359,37 +359,30 @@ It does not check whether the Moodle tag exists (failure occurs during download)
 
 ## PHP selection
 
-Without `--php-version`, `select_php_version_for_moodle` selects PHP using the Moodle version's `MAJOR.MINOR`:
+The installer validates the requested Moodle branch and PHP pair before creating resources. Moodle **4.3 is the minimum**, including 4.3. Unknown branches fail closed.
 
-| Moodle | PHP (automatic) | Compatibility (from script comments) |
+| Moodle | Default PHP | Allowed PHP branches after the security floor |
 |---|---|---|
-| 3.9.x | 7.4 | 7.2–7.4 |
-| 3.11.x | 8.0 | 7.3–8.0 |
-| 4.0.x | 8.0 | 7.3–8.0 |
-| 4.1.x | 8.1 | 7.4–8.1 |
-| 4.2.x, 4.3.x, 4.4.x | 8.2 | 8.0/8.1–8.2 |
-| 4.5.x | 8.3 | 8.1–8.3 |
-| 5.x and later (MAJOR ≥ 5), including 5.1+ | 8.4 | 8.2–8.4 (5.3: 8.3–8.4) |
-| Any other version (3.10, 3.8 and earlier…) | 8.3 + warning | Set `--php-version` manually: 7.4 is suitable for 3.10 |
+| 4.3.x | 8.2 | 8.2 |
+| 4.4.x | 8.2 | 8.2, 8.3 |
+| 4.5.x | 8.3 | 8.2, 8.3 |
+| 5.0.x, 5.1.x | 8.4 | 8.2, 8.3, 8.4 |
+| 5.2.x, 5.3.x | 8.4 | 8.3, 8.4 |
 
 ### Manual selection
 
-`--php-version 8.2` and `--php-version 82` are equivalent: the dot is removed, and the script looks for `php82.Dockerfile` and `php82.ini`. The script does not verify compatibility between the chosen PHP and Moodle versions. Incompatible versions cause installation to fail during Moodle's environment check.
+`--php-version 8.2` and `--php-version 82` are equivalent. The installer rejects incompatible Moodle/PHP pairs before deployment. Patch-qualified overrides and unverified branches are rejected.
 
-### Available versions
+### Minimum patch versions
 
-A version is available only when the template contains **both** a Dockerfile (`moodle/.docker/php/`) **and** an ini file (`moodle/.config/php/`):
+| PHP | Minimum patch | Host template |
+|---|---|---|
+| 8.2 | 8.2.35 | `php82.Dockerfile` / `php82.ini` |
+| 8.3 | 8.3.36 | `php83.Dockerfile` / `php83.ini` |
+| 8.4 | 8.4.27 | `php84.Dockerfile` / `php84.ini` |
+| 8.5 | 8.5.12 | No verified Moodle pair; unavailable |
 
-| PHP | Dockerfile | ini | Available |
-|---|---|---|---|
-| 7.4 | yes | yes | yes |
-| 8.0 | yes | yes | yes |
-| 8.1 | yes | yes | yes |
-| 8.2 | yes | yes | yes |
-| 8.3 | yes | yes | yes |
-| 8.4 | yes | yes | yes |
-
-For an unavailable version, the script stops **before deployment**, reporting a missing PHP Dockerfile or ini file, for example `…/moodle/.docker/php/php72.Dockerfile`.
+PHP 8.1 and older are prohibited and their templates have been removed. Host bases are pinned by patch and digest. Builds and startup check the actual PHP version; activation and restore probe it before starting services or importing a database. See [runtime policy and migration](docs/RUNTIME_POLICY.md) for CVEs, canonical policy, compatibility sources and existing installations.
 
 ### PHP settings in the template
 
@@ -776,11 +769,11 @@ sudo bash /opt/mooship/deploy-moodle.sh \
 sudo bash /opt/mooship/deploy-moodle.sh \
   --slug school \
   --domain school.example.com \
-  --moodle-version 4.4.0 \
-  --php-version 8.1 \
+  --moodle-version 4.5.15 \
+  --php-version 8.2 \
   --db-type postgres \
   --ssl-email admin@example.com
-# Result: Moodle 4.4.0 on PHP 8.1 instead of automatic 8.2 (also accepts --php-version 81)
+# Result: Moodle 4.5.15 on patched PHP 8.2 instead of automatic 8.3 (also accepts --php-version 82)
 ```
 
 ### 5. A custom administrator
@@ -1006,16 +999,17 @@ The exit code follows the Nagios convention (0 OK, 1 WARNING, 2 CRITICAL), so th
 
 1. Enable maintenance mode: `maintenance.php --enable`.
 2. Back up the database and files (see above).
-3. Replace the code in `public_html/` with the new version, **preserving `config.php`** and third-party plugins.
-4. Run `docker compose run --rm permissions`.
-5. Run `upgrade.php --non-interactive`.
-6. Disable maintenance mode: `maintenance.php --disable`.
+3. Verify the target Moodle/PHP pair against the [runtime policy](docs/RUNTIME_POLICY.md), then replace the code in `public_html/`, **preserving `config.php`** and third-party plugins.
+4. Update `MOODLE_VERSION` in `.env` to the exact stable source release. Activation and restore reject source/metadata disagreement, including after manual upgrades.
+5. Run `docker compose run --rm permissions`.
+6. Run `upgrade.php --non-interactive`.
+7. Disable maintenance mode: `maintenance.php --disable`.
 
 If the new Moodle version needs a different PHP version:
 
 1. Change `phpXX.Dockerfile` and `phpXX.ini` for the `php` and `cron` services in the project's `docker-compose.yml`.
-2. Run `docker compose up -d --build php cron`.
-3. Update `PHP_VERSION` in `.env` to keep the recorded version consistent.
+2. Update `PHP_VERSION` in `.env` before rebuilding, and copy the current patched Dockerfile plus runtime policy/guard/entrypoint into the site's PHP build context.
+3. Run `docker compose build --pull php cron`, verify the actual PHP patch, then restart through the updated activation script and check readiness. Keep cron's loop as a Compose `command` so the guarded image entrypoint runs.
 
 When upgrading from Moodle 5.0 or earlier to 5.1+, change the nginx document root after replacing the code; the script does this only for fresh deployments.
 
@@ -1185,7 +1179,7 @@ With `--endpoint URL`, the script sends a PUT request after SSL issuance, using 
 
 ### The script immediately stops with a PHP error
 
-A missing PHP Dockerfile or ini error means that version is absent from the template. Choose 7.4 or 8.0–8.4. Deployment has not created project files at this stage.
+Select Moodle 4.3+ and a compatible patched PHP 8.2–8.4 branch from the [selection table](#php-selection). Old PHP, incompatible pairs and unknown branches are rejected before deployment. A missing Dockerfile/INI means the toolkit is incomplete; update the entire toolkit rather than adding an obsolete template.
 
 ### Moodle download failed; check the version (404)
 
@@ -1333,7 +1327,7 @@ Current projects pass the client address to PHP (see [How it works](#how-it-work
   - Explicitly supplied ports are not checked for availability. Automatic checks use currently listening sockets only, so a stopped project's ports may be assigned to a new project.
   - Redis and database ports are published only on `127.0.0.1` (see [Security](#security)).
 - **Redis** stores sessions; Moodle's application cache (MUC) is not configured automatically (see [Optional additions](#optional-additions-to-configphp)).
-- **Database images are fixed:** `postgres:17-alpine` and `mysql:8.4` (Moodle 5.3 requires PostgreSQL 17+ or MySQL 8.4+). Dependabot keeps these tested branches; major database changes require migration and backup/restore validation. Existing projects retain their saved image configuration: never attach a MySQL 9.x or PostgreSQL 18 data directory to an older database image. Template changes apply to new projects. Compatibility with older Moodle versions (3.9–4.0) is not guaranteed.
+- **Database images are fixed:** `postgres:17-alpine` and `mysql:8.4` (Moodle 5.3 requires PostgreSQL 17+ or MySQL 8.4+). Dependabot keeps these tested branches; major database changes require migration and backup/restore validation. Existing projects retain their saved image configuration: never attach a MySQL 9.x or PostgreSQL 18 data directory to an older database image. Template changes apply to new projects. Moodle below 4.3 is prohibited; use a currently maintained Moodle branch when possible.
 - **Language:** installation uses `en` only; install language packs afterwards.
 - **Backups pause the site** for the snapshot, including scheduled ones.
 - **Backups** require space for a temporary project copy and the archive; restoration supports trusted Mooship v1 archives created by the project.
@@ -1356,7 +1350,7 @@ Real HTTP/HTTPS checks are opt-in and use synthetic files through two nginx laye
 MOOSHIP_HTTP_INTEGRATION=1 python3 -B -m unittest discover -s tests -p test_http_roundtrip.py -v
 ```
 
-Docker must be running, and `nginx:1.29.1-alpine`, `python:3.12-alpine`, `httpd:2.4-alpine`, `alpine/openssl:latest`, and `php:8.4-fpm` must already be available locally. `MOOSHIP_TEST_PHP_IMAGE` may select another PHP-FPM image, for example `php:8.4-fpm-alpine`. The suite also checks the Moodle router fallback, X-Sendfile, the client address seen by PHP, the HTTPS redirect, and that a stopped project does not stop the proxy.
+Docker must be running, and `nginx:1.29.1-alpine`, `python:3.12-alpine`, `httpd:2.4-alpine`, `alpine/openssl:latest`, and `php:8.4.27-fpm` must already be available locally. `MOOSHIP_TEST_PHP_IMAGE` may select another PHP-FPM image, for example `php:8.4.27-fpm-alpine`. The suite also checks the Moodle router fallback, X-Sendfile, the client address seen by PHP, the HTTPS redirect, and that a stopped project does not stop the proxy.
 
 Proxy lifecycle checks cover multiple sites, disabled entries, exact slug matching, repeat operations, and the last site's deactivation/reactivation. To validate the edited files with Docker Compose and verify actual proxy network/volume detachment while a neighboring site remains available:
 

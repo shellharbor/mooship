@@ -203,6 +203,10 @@ class CLITests(unittest.TestCase):
             root = Path(directory)
             (root / "VERSION").write_text("1.2.0", encoding="ascii")
             for command, filename in cli.COMMANDS.items():
+                (root / "lib").mkdir(exist_ok=True)
+                (root / "lib/runtime_policy.py").touch()
+                (root / "moodle/.docker/php").mkdir(parents=True, exist_ok=True)
+                (root / "moodle/.docker/php/runtime-policy.json").write_text("{}", encoding="ascii")
                 (root / filename).write_text("#!/bin/bash\n", encoding="ascii")
                 with self.subTest(command=command), patch.object(cli.sys, "platform", "linux"), \
                         patch.object(cli.shutil, "which", return_value="/bin/bash"), \
@@ -215,6 +219,18 @@ class CLITests(unittest.TestCase):
                     "bash", str(root / filename), "--slug", "demo", "secret;$(touch nope)",
                 ])
                 self.assertEqual(output + errors, "")
+
+    def test_legacy_toolkits_cannot_deploy_activate_or_restore_but_remain_readable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "VERSION").write_text("1.2.0", encoding="ascii")
+            for command in ("deploy", "activate", "restore"):
+                with self.subTest(command=command), patch.object(cli.os, "execvp") as execute:
+                    status, _, errors = self.call([command, "--directory", directory])
+                    self.assertEqual(status, 1)
+                    self.assertIn("mandatory PHP security policy", errors)
+                    execute.assert_not_called()
+            self.assertEqual(cli.toolkit_root(directory, require_policy=False), root)
 
     def test_partial_and_missing_toolkits_are_refused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -237,7 +253,7 @@ class CLITests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             (Path(directory) / "VERSION").write_text("1.2.0", encoding="ascii")
             with patch.object(cli.sys, "platform", "win32"):
-                status, _, error = self.call(["deploy", "--directory", directory])
+                status, _, error = self.call(["doctor", "--directory", directory])
             self.assertEqual(status, 1)
             self.assertIn("Linux server over SSH", error)
 

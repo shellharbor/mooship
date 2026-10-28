@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 umask 077
+php /opt/mooship/check-runtime.php "$(php -r '$v = json_decode(file_get_contents("/opt/mooship/version.json"), true); echo explode(" ", $v["release"])[0];')"
 if [ "$#" -eq 0 ]; then set -- fpm; fi
 case "$1" in
     --help|-h)

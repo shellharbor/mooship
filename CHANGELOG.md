@@ -2,9 +2,20 @@
 
 After every task with file changes, briefly record what changed and why: features, fixes, internal work, dependencies, documentation, and AI-KIT. Keep new entries under `Unreleased` until a release is confirmed; use verified dates and versions. Tasks without file changes need no entry.
 
+## [1.2.1] - 2026-10-28
+
+- Record the non-negotiable PHP/Moodle runtime baseline in project instructions, the public skill, context, continuity profile and ADR-0007 so future changes preserve the security policy.
+
+- Fix PHP 8.2 database-probe diagnostics when PHP reads source from stdin: write to `php://stderr` because CLI stream constants may be absent. Preserve expected failure/partial-state exit codes and cover the lowest supported patched runtime.
+
+- Enforce per-branch PHP security floors (8.2.35, 8.3.36, 8.4.27, 8.5.12) for CVE-2026-109618/CVE-2026-109619 and Moodle 4.3+ compatibility; remove PHP 7.4/8.0/8.1 templates, pin patched bases, and guard builds/startup/activation/restore against unsafe runtimes. Require policy-aware toolkits from the Python CLI, extend boundary/lifecycle/image tests and E2E coverage, and document migration plus obsolete 1.2.0 artifacts. Release version 1.2.1 with matching image/package/toolkit metadata.
+
+- Finalize security-release installation instructions and record successful six-case E2E, image tests and required CI before the owner-approved publication.
+
 ## Unreleased
 
 ### AI-KIT
+
 
 - 2026-10-15: require image impact assessment for behavior, dependency and configuration changes, synchronized runtime/build assets, and affected image rebuilds with relevant tests. Added a verified build-input map and reporting rules to the runtime guide and synchronized public/local AI instructions so host and standalone changes are assessed together without unnecessary rebuilds or implied publication.
 
@@ -40,6 +51,8 @@ After every task with file changes, briefly record what changed and why: feature
 - 2026-10-04: extended the English language requirement to all authored project content and agent communication, including code, UI text, logs, Git messages, reviews, and reports, so future project work follows one language policy.
 
 ### Project
+
+
 
 - 2026-10-28: require LF checkout for standalone Docker assets and verify nginx's actual Docker HEALTHCHECK independently of DB availability. Windows CRLF conversion made the original locally published nginx health payload fail; canonical Git LF export is required for corrected image packaging.
 - 2026-10-28: published GitHub release v1.2.0 and mooship 1.2.0 on PyPI through Trusted Publishing; verified a fresh public package install and real checksummed toolkit installation. Merged PRs #11/#6 after successful CI/E2E, corrected main's Go-specific required checks with owner approval, and synchronized verified publication/security facts in local continuity documents. Published and verified the PHP image and corrected nginx-r1 companion in Docker Hub; the original nginx tag is superseded after reproducing its Windows CRLF health defect.

@@ -1,4 +1,27 @@
 #!/bin/bash
+
+# The policy belongs to this toolkit, never to an archived project's Dockerfiles.
+mooship_runtime_selection() {
+    python3 "$SCRIPT_DIR/lib/runtime_policy.py" select "$1" "${2:-}"
+}
+
+mooship_require_project_runtime() {
+    local directory="${1:-$PROJECT_DIR}" moodle php
+    moodle=$(mooship_read_env "$directory/.env" MOODLE_VERSION)
+    php=$(mooship_read_env "$directory/.env" PHP_VERSION)
+    mooship_runtime_selection "$moodle" "$php" >/dev/null ||
+        mooship_die "Project/backup runtime is prohibited or unknown; migrate to Moodle 4.3+ and patched PHP first"
+    python3 "$SCRIPT_DIR/lib/runtime_policy.py" check-source "$directory/public_html" "$moodle" "$php" ||
+        mooship_die "Installed Moodle does not satisfy the runtime policy or saved metadata"
+}
+
+mooship_verify_project_php() {
+    local actual moodle
+    actual=$(docker compose run --rm -T --no-deps --entrypoint php php -r 'echo PHP_VERSION;') || return 1
+    moodle=$(mooship_read_env "$PROJECT_DIR/.env" MOODLE_VERSION)
+    python3 "$SCRIPT_DIR/lib/runtime_policy.py" check-runtime "$moodle" "$actual" ||
+        mooship_die "Built PHP runtime is prohibited; rebuild with the patched Mooship templates before starting services"
+}
 # Shared safety boundaries for Mooship's host scripts.
 
 mooship_die() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }

@@ -19,7 +19,9 @@ RELEASE_PATTERN = r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?"
 REQUIRED_FILES = ("VERSION", "deploy-moodle.sh", "backup.sh", "restore.sh", "doctor.sh",
                   "schedule-backup.sh", "activate.sh", "deactivate.sh", "remove.sh",
                   "list-projects.sh", "lib/common.sh", "lib/state.py", "lib/web.py",
-                  "lib/proxy.py", "moodle/docker-compose.yml", "nginxproxy/nginx.conf")
+                  "lib/proxy.py", "lib/runtime_policy.py", "moodle/.docker/php/runtime-policy.json",
+                  "moodle/.docker/php/check-runtime.php", "moodle/.docker/php/runtime-entrypoint.sh",
+                  "moodle/docker-compose.yml", "nginxproxy/nginx.conf")
 
 
 def release_version(value: str) -> str:

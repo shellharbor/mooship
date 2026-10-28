@@ -14,7 +14,7 @@ Mooship separates fast regression checks, component tests, and full Moodle deplo
 | [CodeQL](../.github/workflows/codeql.yml) | Python and GitHub Actions security analysis | Push to `main`, PR, Wednesday, manual |
 | [Dependency review](../.github/workflows/dependency-review.yml) | Reject newly introduced high/critical dependency vulnerabilities reported by GitHub | PR |
 | [Documentation](../.github/workflows/docs.yml) | Local inline Markdown links, heading anchors, and endpoint JSON example syntax | Push to `main`, PR, manual |
-| [E2E](../.github/workflows/e2e.yml) | Real Moodle 4.5/5.3 deployment with PostgreSQL/MySQL, Redis sessions, SMTP, cron, backups, schedules, and doctor | Monday, manual |
+| [E2E](../.github/workflows/e2e.yml) | Real Moodle 4.3/4.5/5.3 deployment with PostgreSQL/MySQL, Redis sessions, SMTP, cron, backups, schedules, and doctor | Monday, manual |
 
 The regression matrix uses Python 3.8, 3.12, and 3.14 on Ubuntu 24.04, plus Python 3.12 on Ubuntu 22.04. Python 3.8 verifies the existing minimum runtime contract; development tools run on Python 3.12. These jobs exercise synthetic data without installing Moodle.
 

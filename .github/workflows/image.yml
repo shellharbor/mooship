@@ -37,7 +37,7 @@ jobs:
           docker build --target web --tag shellharbor/mooship:dev-moodle4.5.15-nginx .
       - name: PHP syntax
         run: |
-          for file in docker/*.php; do
+          for file in docker/*.php moodle/.docker/php/check-runtime.php; do
             docker run --rm --read-only --network none --volume "$PWD/$file:/check.php:ro" shellharbor/mooship:dev-moodle4.5.15-php8.3 php -l /check.php
           done
       - name: Validate both Compose examples

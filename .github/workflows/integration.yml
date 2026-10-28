@@ -26,7 +26,7 @@ jobs:
       MOOSHIP_DOCKER_TESTS: '1'
       MOOSHIP_HTTP_INTEGRATION: '1'
       MOOSHIP_PROXY_INTEGRATION: '1'
-      MOOSHIP_TEST_PHP_IMAGE: php:8.4-fpm-alpine
+      MOOSHIP_TEST_PHP_IMAGE: php:8.4.27-fpm-alpine
       PYTHONPATH: tests
       COMPONENT: ${{ matrix.component }}
     steps:
@@ -38,7 +38,7 @@ jobs:
           case "$COMPONENT" in
             postgres) images=(postgres:17-alpine) ;;
             mysql) images=(mysql:8.4) ;;
-            http) images=(nginx:1.29.1-alpine php:8.4-fpm-alpine python:3.12-alpine httpd:2.4-alpine alpine/openssl:latest) ;;
+            http) images=(nginx:1.29.1-alpine php:8.4.27-fpm-alpine python:3.12-alpine httpd:2.4-alpine alpine/openssl:latest) ;;
             proxy) images=(nginx:1.29.1-alpine) ;;
             *) exit 1 ;;
           esac

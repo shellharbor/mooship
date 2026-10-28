@@ -20,6 +20,11 @@ def docker(*args, timeout=120, input_text=None):
 class NativePreflightTests(unittest.TestCase):
     def test_php_authenticates_via_host_gateway_and_refuses_failures(self):
         image = os.environ["MOOSHIP_PREFLIGHT_PHP_IMAGE"]
+        from test_runtime_policy import POLICY
+        actual = docker("run", "--rm", "--read-only", "--network", "none", "--entrypoint", "php",
+                        image, "-r", "echo PHP_VERSION;")
+        self.assertEqual(actual.returncode, 0, actual.stderr)
+        POLICY.check_php(actual.stdout.strip())
         engine = os.environ.get("MOOSHIP_PREFLIGHT_DB", "postgres")
         name = "mooship-native-probe-" + uuid.uuid4().hex[:12]
         password = "Synthetic_" + uuid.uuid4().hex
@@ -73,7 +78,8 @@ class NativePreflightTests(unittest.TestCase):
                        "MYSQL_PWD=\"$MYSQL_PASSWORD\" mysql -umoodle -Dmoodle -e \"$1\"")
             result = docker("exec", name, "sh", "-c", command, "sh", sql)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(probe("installed").returncode, expected)
+            result = probe("installed")
+            self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         self.assertEqual(docker("stop", "--time", "20", name).returncode, 0)
         # Docker's host proxy may accept TCP even after its backend stops.
         self.assertNotEqual(probe().returncode, 0)

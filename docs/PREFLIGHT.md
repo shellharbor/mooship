@@ -38,7 +38,7 @@ After Moodle code/config generation, validate and reload nginx so a newly select
 
 `tests/test_preflight.py` covers invalid/occupied/duplicate ports, native endpoint selection, secret transport, bounded health transitions and installation refusal. Opt-in `tests/test_native_preflight.py` publishes a disposable synthetic PostgreSQL/MySQL DB on a random host port and checks real PHP host-gateway access, wrong credentials, empty/partial/installed states and an unavailable endpoint. Temporary host publications are needed for this test; these are not production databases.
 
-The full E2E matrix installs Moodle 4.5/5.3 with PostgreSQL/MySQL and then checks native routing using its built PHP image. It also checks HTTP, Redis sessions, SMTP, cron, backup retention, systemd schedules and doctor. TLS issuance is outside the synthetic HTTP runner setup.
+The full E2E matrix installs Moodle 4.3/4.5/5.3 with PostgreSQL/MySQL and then checks native routing using its built PHP image. It also checks HTTP, Redis sessions, SMTP, cron, backup retention, systemd schedules and doctor. TLS issuance is outside the synthetic HTTP runner setup.
 
 The synthetic E2E domain is resolved both on the runner and inside PHP. A dedicated internal test network gives nginxproxy that DNS alias, allowing Moodle 5.3's router status check to call its own wwwroot. Production domains must resolve from their application containers. E2E checks successful router/API responses and a real 404 before the final doctor gate.
 

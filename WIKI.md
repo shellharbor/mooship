@@ -4,10 +4,13 @@ Project knowledge map. Public links target files included in the repository. Opt
 
 ## Getting started
 
-- [Mooship v1.2.0 release and native toolkit assets](https://github.com/shellharbor/mooship/releases/tag/v1.2.0)
-- [Published Python CLI on PyPI](https://pypi.org/project/mooship/1.2.0/)
+Read the [mandatory runtime policy](docs/RUNTIME_POLICY.md) before deployment. Use 1.2.1 or newer; 1.2.0 artifacts predate its PHP security floors. Verify publication through the release/package/registry links.
+
+- [Mooship v1.2.1 security release and native toolkit assets](https://github.com/shellharbor/mooship/releases/tag/v1.2.1)
+- [Published Python CLI on PyPI](https://pypi.org/project/mooship/1.2.1/)
 - [README and operations guide](README.md)
 - [Standalone Moodle images, Compose, Kubernetes, and Docker Hub](docs/DOCKER.md)
+- [Mandatory PHP/Moodle security policy and existing-site migration](docs/RUNTIME_POLICY.md)
 - [Image impact assessment, synchronization, rebuilds, and checks](docs/DOCKER.md#keeping-images-in-sync)
 - [Python CLI, pip/pipx installation, and PyPI](docs/PYTHON.md)
 - [Release publication and account setup](docs/RELEASING.md)
@@ -34,6 +37,7 @@ These local resources are not distributed with the repository. Use them when pro
 - [Python CLI and release distribution decision](docs/adr/0006-python-cli-and-release-distribution.md)
 
 - [Deployment preflight and readiness decision](docs/adr/0005-deployment-preflight.md)
+- [Shared runtime security baseline decision](docs/adr/0007-runtime-security-baseline.md)
 - [Changelog](CHANGELOG.md)
 
 ## Mooship

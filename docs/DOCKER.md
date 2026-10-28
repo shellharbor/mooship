@@ -2,15 +2,17 @@
 
 The root Dockerfile builds a Moodle 4.5.15/PHP 8.3 runtime and a matching nginx companion published as `shellharbor/mooship`. PostgreSQL 17 or MySQL 8.4 runs separately. The existing host installer is an independent deployment option. These application images do not manage Docker or host directories.
 
-The published 1.2.0 pair is `1.2.0-moodle4.5.15-php8.3` and `1.2.0-moodle4.5.15-nginx-r1`. Use the corrected `nginx-r1` companion: the original nginx tag contains a Windows CRLF health response that fails Docker's health check. The `dev-*` tags below identify local source builds. Runtime verification covers Linux amd64; other architectures require their own build and installation checks.
+The 1.2.1 security pair is `1.2.1-moodle4.5.15-php8.3` and `1.2.1-moodle4.5.15-nginx`. The 1.2.0 pair predates the [mandatory PHP security baseline](RUNTIME_POLICY.md) and must be replaced for new installations; its historical nginx-r1 health correction does not update PHP. The `dev-*` tags identify local source builds. Runtime verification covers Linux amd64; other architectures require their own build and installation checks.
 
 ## Build and install with Compose
 
-Run from the repository root on a Linux Docker host with Compose v2+. Docker Desktop can build/test the images; production secret-file ownership examples assume Linux. To use the published pair, export the image references and copy the configuration example:
+Run from the repository root on a Linux Docker host with Compose v2+. Docker Desktop can build/test the images; production secret-file ownership examples assume Linux. Select the 1.2.1 pair and copy the configuration example:
+
+Use the matching versioned references below after confirming the release and registry tags. To build locally, use the alternative development-tag commands.
 
 ```bash
-export MOOSHIP_APP_IMAGE=shellharbor/mooship:1.2.0-moodle4.5.15-php8.3
-export MOOSHIP_WEB_IMAGE=shellharbor/mooship:1.2.0-moodle4.5.15-nginx-r1
+export MOOSHIP_APP_IMAGE=shellharbor/mooship:1.2.1-moodle4.5.15-php8.3
+export MOOSHIP_WEB_IMAGE=shellharbor/mooship:1.2.1-moodle4.5.15-nginx
 cp docker/.env.example docker/.env
 ```
 
@@ -125,6 +127,7 @@ Assess image impact whenever behavior, dependencies, or configuration changes. T
 | Root `Dockerfile`, its downloaded Moodle source, base images or extension pins | Trace affected stages; shared Moodle code changes require matching `app` and `web` builds. Update Moodle version, commit and archive hash together. |
 | `docker/*.php`, app entrypoint, cron, health check, FPM settings, `moodle/.config/php/mooship.ini` | These are copied into `app`; rebuild it when these inputs change. |
 | `docker/nginx.conf.template`, `docker/web-entrypoint.sh`, `docker/health.txt` | These are copied into `web`; rebuild it when these inputs change. |
+| `moodle/.docker/php/runtime-policy.json`, `check-runtime.php`, patched PHP bases | Shared security contract: synchronize host PHP/cron templates and standalone app/source stages, then rebuild affected targets and verify actual patch floors. The web target uses the checked source stage. |
 | `.dockerignore` or newly added runtime files | Verify the required inputs enter the build context and are copied into the correct target. |
 | Compose, Kubernetes manifests, environment examples | Usually external to the images; validate configuration and runtime compatibility. Rebuild only if image contents or their startup contract also need changes. |
 | Host installer, lifecycle utilities, `lib/`, other host templates, documentation | Not copied into the standalone images. Check whether the behavior also needs a corresponding runtime change; otherwise no image rebuild is needed. |

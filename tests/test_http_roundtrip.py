@@ -154,7 +154,11 @@ class HttpRoundtripTests(unittest.TestCase):
                   (self.directory / "acme", "/var/www/certbot"),
                   (self.directory / ".htpasswd", "/etc/nginx/.htpasswd"),
                   (certificates, "/etc/letsencrypt")]
-        self.start(self.slug + "_php", os.environ.get("MOOSHIP_TEST_PHP_IMAGE", "php:8.4-fpm"),
+        php_image = os.environ.get("MOOSHIP_TEST_PHP_IMAGE", "php:8.4.27-fpm")
+        from test_runtime_policy import POLICY
+        POLICY.check_php(self.docker("run", "--rm", "--pull", "never", "--read-only", "--network", "none",
+                                     "--entrypoint", "php", php_image, "-r", "echo PHP_VERSION;"))
+        self.start(self.slug + "_php", php_image,
                    ["php-fpm", "--fpm-config", "/fixtures/php-fpm.conf", "--nodaemonize"], common)
         self.start(self.slug + "_nginx", "nginx:1.29.1-alpine",
                    ["nginx", "-g", "daemon off;"],
