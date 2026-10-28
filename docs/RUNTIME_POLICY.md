@@ -21,7 +21,7 @@ The patch floors address CVE-2026-109618 and CVE-2026-109619. See the [PHP chang
 
 ## Existing installations and published artifacts
 
-The published Mooship **1.2.0** PHP image and native toolkit predate this policy. Do not use them for a new installation. The 1.2.0 nginx-r1 health-check correction does not update PHP. PyPI 1.2.0 likewise does not enforce this policy; use the updated source until a security release is published. Version **1.2.1 in this checkout is a release candidate**, not evidence of publication.
+The published Mooship **1.2.0** PHP image and native toolkit predate this policy. Do not use them for a new installation. The 1.2.0 nginx-r1 health-check correction does not update PHP. PyPI 1.2.0 likewise does not enforce this policy. Upgrade to **1.2.1 or newer**, including both the Python CLI and native toolkit. Verify availability through the [GitHub release](https://github.com/shellharbor/mooship/releases/tag/v1.2.1), [PyPI](https://pypi.org/project/mooship/1.2.1/) and matching Docker Hub tags; a source VERSION alone is not publication evidence.
 
 For a standalone installation, build and test both updated targets using [the Docker guide](DOCKER.md), back up the database and data, then replace the matching PHP/nginx pair. Confirm `php -r 'echo PHP_VERSION;'` and readiness on the replacement. Upgrading PHP alone does not require or authorize a Moodle schema upgrade.
 

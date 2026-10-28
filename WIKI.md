@@ -4,10 +4,10 @@ Project knowledge map. Public links target files included in the repository. Opt
 
 ## Getting started
 
-Read the [mandatory runtime policy](docs/RUNTIME_POLICY.md) before deployment. Published 1.2.0 artifacts predate its PHP security floors; use the reviewed updated source until a security release is published.
+Read the [mandatory runtime policy](docs/RUNTIME_POLICY.md) before deployment. Use 1.2.1 or newer; 1.2.0 artifacts predate its PHP security floors. Verify publication through the release/package/registry links.
 
-- [Mooship v1.2.0 release and native toolkit assets](https://github.com/shellharbor/mooship/releases/tag/v1.2.0)
-- [Published Python CLI on PyPI](https://pypi.org/project/mooship/1.2.0/)
+- [Mooship v1.2.1 security release and native toolkit assets](https://github.com/shellharbor/mooship/releases/tag/v1.2.1)
+- [Published Python CLI on PyPI](https://pypi.org/project/mooship/1.2.1/)
 - [README and operations guide](README.md)
 - [Standalone Moodle images, Compose, Kubernetes, and Docker Hub](docs/DOCKER.md)
 - [Mandatory PHP/Moodle security policy and existing-site migration](docs/RUNTIME_POLICY.md)

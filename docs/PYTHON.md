@@ -4,12 +4,12 @@ Install Mooship through pip or pipx, then use one command for its existing Moodl
 
 ## Install the CLI
 
-Published 1.2.0 predates the [mandatory PHP/Moodle security policy](RUNTIME_POLICY.md). Install the updated reviewed checkout for deployment until the security release is published; 1.2.1 in this checkout is a release candidate. The updated CLI rejects deployment, activation and restore using pre-policy toolkits while retaining backup/diagnostic access.
+Mooship 1.2.1 enforces the [mandatory PHP/Moodle security policy](https://github.com/shellharbor/mooship/blob/main/docs/RUNTIME_POLICY.md). Upgrade both the CLI and native toolkit from 1.2.0. The CLI rejects deployment, activation and restore using pre-policy toolkits while retaining backup/diagnostic access.
 
-Version 1.2.0 is published on [PyPI](https://pypi.org/project/mooship/1.2.0/). A reviewed checkout can also be installed with `pipx install .` or `python -m pip install .` in a virtual environment. For the published CLI:
+Get version 1.2.1 from [PyPI](https://pypi.org/project/mooship/1.2.1/). A reviewed checkout can also be installed with `pipx install .` or `python -m pip install .` in a virtual environment. For the published CLI:
 
 ```bash
-pipx install .  # Run from the reviewed checkout
+pipx install mooship==1.2.1
 mooship --version
 mooship --help
 ```
@@ -21,13 +21,14 @@ Help and installation previews work without root. Server operations target Ubunt
 The CLI downloads an exact official GitHub release archive and its SHA-256 file over HTTPS, verifies the checksum, archive paths/types/limits and embedded VERSION, then installs into a new directory. Existing files/directories/symlinks are refused. A failed copy remains marked for inspection and cannot silently be reused. Checksums establish consistency with the release assets rather than an independent signature.
 
 ```bash
-MOOSHIP_DIR="$PWD"  # Complete reviewed checkout, including native scripts/templates
+mooship install --version 1.2.1 --directory /opt/mooship-1.2.1 --dry-run
 MOOSHIP_CLI="$(command -v mooship)"
-mooship toolkit-version --directory "$MOOSHIP_DIR"
-sudo "$MOOSHIP_CLI" deploy --directory "$MOOSHIP_DIR" -- \
+sudo "$MOOSHIP_CLI" install --version 1.2.1 --directory /opt/mooship-1.2.1
+mooship toolkit-version --directory /opt/mooship-1.2.1
+sudo "$MOOSHIP_CLI" deploy --directory /opt/mooship-1.2.1 -- \
   --slug lms --domain lms.example.com --db-type postgres --ssl-email admin@example.com
-sudo "$MOOSHIP_CLI" doctor --directory "$MOOSHIP_DIR" -- --slug lms
-sudo "$MOOSHIP_CLI" backup --directory "$MOOSHIP_DIR" -- --slug lms
+sudo "$MOOSHIP_CLI" doctor --directory /opt/mooship-1.2.1 -- --slug lms
+sudo "$MOOSHIP_CLI" backup --directory /opt/mooship-1.2.1 -- --slug lms
 ```
 
 Default directory: `/opt/mooship`; its parent must exist. Use `--directory /absolute/path` before `--` for another installation or a complete reviewed checkout containing VERSION. The CLI never escalates privileges implicitly; underlying scripts retain their root checks, confirmation prompts and operational contracts.
