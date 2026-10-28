@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mooship"
+dynamic = ["version"]
+description = "Install and run Mooship's Moodle deployment, backup and diagnostics toolkit."
+readme = "docs/PYTHON.md"
+requires-python = ">=3.8"
+license = "MIT"
+dependencies = []
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Environment :: Console",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Installation/Setup",
+]
+
+[project.scripts]
+mooship = "mooship.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/shellharbor/mooship"
+Documentation = "https://github.com/shellharbor/mooship/blob/main/docs/PYTHON.md"
+Source = "https://github.com/shellharbor/mooship"
+Issues = "https://github.com/shellharbor/mooship/issues"
+
+[tool.hatch.version]
+path = "VERSION"
+pattern = "(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)"
+
+[tool.hatch.build.targets.sdist]
+include = ["/src/mooship", "/VERSION", "/pyproject.toml", "/docs/PYTHON.md", "/LICENSE"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mooship"]
+
+[tool.hatch.build.targets.wheel.force-include]
+VERSION = "mooship/_release.txt"

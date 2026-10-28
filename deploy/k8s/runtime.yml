@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mooship
+spec:
+  selector:
+    app: mooship
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mooship
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mooship
+  template:
+    metadata:
+      labels:
+        app: mooship
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: shellharbor/mooship:dev-moodle4.5.15-php8.3
+          args: [fpm]
+          envFrom:
+            - configMapRef:
+                name: mooship
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Initial estimates, tune after measuring the actual workload.
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: '2', memory: 2Gi}
+          startupProbe:
+            exec:
+              command: [mooship-healthcheck]
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            exec:
+              command: [mooship-healthcheck]
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: [mooship, check]
+            timeoutSeconds: 8
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - 'pid=$(cat /tmp/php-fpm.pid); kill -QUIT "$pid"; while kill -0 "$pid" 2>/dev/null; do sleep 1; done'
+          volumeMounts:
+            - {name: data, mountPath: /var/moodledata}
+            - {name: app-tmp, mountPath: /tmp}
+            - {name: db-secret, mountPath: /run/secrets/db, readOnly: true}
+        - name: web
+          image: shellharbor/mooship:dev-moodle4.5.15-nginx
+          env:
+            - name: MOOSHIP_FPM_UPSTREAM
+              value: localhost:9000
+          ports:
+            - {name: http, containerPort: 8080}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 50m, memory: 32Mi}
+            limits: {cpu: '1', memory: 256Mi}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            timeoutSeconds: 8
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - 'pid=$(cat /tmp/nginx.pid); kill -QUIT "$pid"; while kill -0 "$pid" 2>/dev/null; do sleep 1; done'
+          volumeMounts:
+            - {name: data, mountPath: /var/moodledata, readOnly: true}
+            - {name: web-tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mooship-data
+        - name: app-tmp
+          emptyDir: {}
+        - name: web-tmp
+          emptyDir: {}
+        - name: db-secret
+          secret:
+            secretName: mooship-db
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mooship-cron
+spec:
+  schedule: '* * * * *'
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 60
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: cron
+              image: shellharbor/mooship:dev-moodle4.5.15-php8.3
+              args: [cron-once]
+              envFrom:
+                - configMapRef: {name: mooship}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                requests: {cpu: 100m, memory: 256Mi}
+                limits: {cpu: '1', memory: 1Gi}
+              volumeMounts:
+                - {name: data, mountPath: /var/moodledata}
+                - {name: tmp, mountPath: /tmp}
+                - {name: db-secret, mountPath: /run/secrets/db, readOnly: true}
+          volumes:
+            - name: data
+              persistentVolumeClaim: {claimName: mooship-data}
+            - name: tmp
+              emptyDir: {}
+            - name: db-secret
+              secret: {secretName: mooship-db}

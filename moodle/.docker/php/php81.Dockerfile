@@ -52,7 +52,7 @@ RUN apt update && apt install -y \
     libmcrypt-dev libssl-dev \
     libreadline-dev libxslt1-dev zlib1g-dev \
     python3-dev python3-psycopg2 \
-    libpq-dev libfcgi-dev \
+    libpq-dev libfcgi-dev libfcgi-bin \
     gnupg ca-certificates \
     htop tree jq \
     supervisor procps \

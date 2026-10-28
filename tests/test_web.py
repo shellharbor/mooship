@@ -1,6 +1,9 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import subprocess
+import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("mooship_web", ROOT / "lib/web.py")
@@ -72,6 +75,19 @@ class WebConfigurationTests(unittest.TestCase):
         lines[tls[0]:tls[1]] = ["#" + line for line in tls[2]]
         result = WEB.http_configuration("\n".join(lines))
         self.assertEqual(result, WEB.http_configuration(self.template))
+
+    def test_public_root_cli_preserves_mounted_file_inode_and_protocol(self):
+        for template in (self.template, WEB.http_configuration(self.template)):
+            with self.subTest(http_only=template != self.template), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / 'site.conf'
+                path.write_text(template, encoding='utf-8')
+                inode = path.stat().st_ino
+                expected = template.replace('root /var/www/html;', 'root /var/www/html/public;')
+                for _ in range(2):
+                    subprocess.run([sys.executable, '-B', str(ROOT / 'lib/web.py'), '--public-root', str(path)],
+                                   check=True, capture_output=True, timeout=10)
+                    self.assertEqual(path.stat().st_ino, inode)
+                    self.assertEqual(path.read_text(encoding='utf-8'), expected)
 
     def test_unsupported_or_unterminated_configuration_is_rejected(self):
         for template in ("server {\n listen 80;\n}\n", self.template[:-2]):

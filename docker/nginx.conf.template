@@ -1,0 +1,46 @@
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+worker_processes auto;
+events { worker_connections 1024; }
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    access_log /dev/stdout;
+    server_tokens off;
+    client_body_temp_path /tmp/client_body;
+    fastcgi_temp_path /tmp/fastcgi;
+    proxy_temp_path /tmp/proxy;
+    uwsgi_temp_path /tmp/uwsgi;
+    scgi_temp_path /tmp/scgi;
+    server {
+        listen 8080;
+        root /opt/moodle;
+        index index.php;
+        client_max_body_size 1100m;
+        location = /healthz { alias /opt/mooship/health.txt; }
+        location = /readyz {
+            include /etc/nginx/fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME /opt/mooship/readiness.php;
+            fastcgi_pass ${MOOSHIP_FPM_UPSTREAM};
+        }
+        location ~ ^/config\.php(?:/|$) { return 404; }
+        location ~ /\.(?!well-known) { return 404; }
+        location ~ ^/admin/cli/ { return 404; }
+        location ~ (/vendor/|/node_modules/|composer\.json|/readme|/README|\.lock$|/fixtures/|/behat/|db/install\.xml|environment\.xml) {
+            return 404;
+        }
+        location /dataroot/ { internal; alias /var/moodledata/; }
+        location / { try_files $uri $uri/ /r.php$is_args$args; }
+        location ~ \.php(?:/|$) {
+            fastcgi_split_path_info ^(.+\.php)(/.*)$;
+            set $saved_path_info $fastcgi_path_info;
+            try_files $fastcgi_script_name =404;
+            include /etc/nginx/fastcgi_params;
+            fastcgi_param PATH_INFO $saved_path_info;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param HTTP_PROXY "";
+            fastcgi_read_timeout 300s;
+            fastcgi_pass ${MOOSHIP_FPM_UPSTREAM};
+        }
+    }
+}

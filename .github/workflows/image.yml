@@ -1,0 +1,53 @@
+name: Moodle images
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime:
+    name: Build and install Moodle with PostgreSQL and MySQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MOOSHIP_IMAGE_TESTS: '1'
+      PYTHONPATH: tests
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate Kubernetes 1.34 schemas
+        run: >
+          docker run --rm --read-only
+          --volume "$PWD/deploy/k8s:/manifests:ro"
+          ghcr.io/yannh/kubeconform:v0.7.0@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c
+          -strict -summary -kubernetes-version 1.34.0 /manifests
+      - name: Build PHP and nginx images locally
+        run: |
+          docker build --target app --tag shellharbor/mooship:dev-moodle4.5.15-php8.3 .
+          docker build --target web --tag shellharbor/mooship:dev-moodle4.5.15-nginx .
+      - name: PHP syntax
+        run: |
+          for file in docker/*.php; do
+            docker run --rm --read-only --network none --volume "$PWD/$file:/check.php:ro" shellharbor/mooship:dev-moodle4.5.15-php8.3 php -l /check.php
+          done
+      - name: Validate both Compose examples
+        env:
+          MOODLE_ADMIN_EMAIL: admin@example.org
+        run: |
+          docker compose -f docker/compose.yml -f docker/compose.postgres.yml config --quiet
+          MOODLE_DB_TYPE=mysqli docker compose -f docker/compose.yml -f docker/compose.mysql.yml config --quiet
+      - name: Real installation, HTTP, secrets, readiness, and shutdown
+        run: |
+          docker pull postgres:17-alpine
+          docker pull mysql:8.4
+          python3 -B -m unittest test_runtime_image -v

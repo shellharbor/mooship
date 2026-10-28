@@ -95,6 +95,7 @@ class MailTests(BashTestCase):
         (self.project / ".env").write_text("SITE_HOST=test.example\n", encoding="utf-8")
         result = self.bash('''PROJECT_DIR="$WWW_DIR/test"; DOMAIN=test.example
 MOODLE_ADMIN_EMAIL=owner@example.org
+mooship_check_database() { return 3; }
 docker() { [[ "$*" == *--help* ]] && return 0; printf '%s\\n' "$*" > "$TEST_DIR/install.log"; }
 install_moodle_database >/dev/null
 ''')

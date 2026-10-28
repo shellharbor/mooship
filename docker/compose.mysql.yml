@@ -1,0 +1,25 @@
+services:
+  db:
+    image: mysql:8.4
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci]
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: moodle
+      MYSQL_USER: moodle
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+    secrets: [db_password, mysql_root_password]
+    volumes:
+      - database:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'mysqladmin ping --silent -h 127.0.0.1']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  database:
+
+secrets:
+  mysql_root_password:
+    file: ../.secrets/mysql_root_password

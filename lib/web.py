@@ -68,10 +68,17 @@ def http_configuration(content: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("configuration", type=Path)
+    parser.add_argument("--public-root", action="store_true",
+                        help="Select Moodle 5.1+ public/ without replacing the mounted file")
     args = parser.parse_args()
     try:
         content = args.configuration.read_text(encoding="utf-8")
-        result = http_configuration(content)
+        if args.public_root:
+            result = re.sub(r"(?m)^(\s*#?\s*)root /var/www/html;",
+                            r"\1root /var/www/html/public;", content)
+        else:
+            result = http_configuration(content)
+        # Preserve the inode: nginx bind-mounts this file and must see its new contents.
         args.configuration.write_text(result, encoding="utf-8")
     except (OSError, ValueError) as error:
         print("Mooship: {}".format(error), file=sys.stderr)
