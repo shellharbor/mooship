@@ -154,7 +154,7 @@ services:
     networks:
       - "{SLUG}"
   certbot:
-    image: certbot/certbot:v5.8.0
+    image: certbot/certbot:v5.9.0
     container_name: "{SLUG}_certbot"
     depends_on:
       - nginx
@@ -164,7 +164,7 @@ services:
     networks:
       - "{SLUG}"
   certbot_renew:
-    image: certbot/certbot:v5.8.0
+    image: certbot/certbot:v5.9.0
     container_name: "{SLUG}_certbot_renew"
     restart: unless-stopped
     logging: *default-logging
