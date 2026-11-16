@@ -1,4 +1,4 @@
-FROM php:8.2.35-fpm-bookworm@sha256:4d81f8b24a4b9cbe263093d5e2fbaa49647b1290193488b936f08355933a5060
+FROM php:8.2.35-fpm-bookworm@sha256:f15b9649b74a4af4621c960b2d9861a998e6eaf652a28089ceb4b3f238b371d4
 
 COPY runtime-policy.json check-runtime.php /opt/mooship/
 RUN php /opt/mooship/check-runtime.php
